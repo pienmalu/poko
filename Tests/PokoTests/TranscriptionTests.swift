@@ -2,13 +2,18 @@ import XCTest
 
 /// 本物の speech.cpp を動かすテスト。POKO_TEST_WAV に 16 kHz・16 bit・モノラルの WAV を渡したときだけ走る。
 /// 例: POKO_HOME=$PWD POKO_TEST_WAV=voice.wav ./scripts/test.sh
+/// POKO_TEST_KEYWORDS に辞書のファイル（1行に「書き方=読み」）を渡すと、辞書を付けて認識する。
 final class TranscriptionTests: XCTestCase {
     func testStreamsAudioAndReturnsText() async throws {
-        guard let path = ProcessInfo.processInfo.environment["POKO_TEST_WAV"] else {
+        let environment = ProcessInfo.processInfo.environment
+        guard let path = environment["POKO_TEST_WAV"] else {
             throw XCTSkip("POKO_TEST_WAV がないので飛ばす")
         }
         let pcm = try Self.samples(ofWAV: URL(fileURLWithPath: path))
-        let session = try Transcription(files: .locate())
+        let keywords = try environment["POKO_TEST_KEYWORDS"].map {
+            Vocabulary.keywords(Vocabulary.parse(try String(contentsOfFile: $0, encoding: .utf8)))
+        } ?? nil
+        let session = try Transcription(files: .locate(), keywords: keywords)
         // 0.1 秒ずつ、録っているときと同じように流す（待たずに）。
         let step = Transcription.sampleRate / 10 * 2
         var offset = pcm.startIndex

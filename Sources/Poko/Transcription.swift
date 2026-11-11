@@ -47,6 +47,9 @@ final class Transcription: @unchecked Sendable {
     static let sampleRate = 16000
     /// 離してから結果が出るまでの上限。3 分の音声でも普通は数秒で終わる。
     static let timeout: TimeInterval = 60
+    /// 辞書をどれだけ強く効かせるか（speech.cpp の `--keywords-alpha`。speech.cpp の既定は 2）。
+    /// 合成音声で試すと、2 では取りこぼしがあり、4 では辞書にない所まで辞書の語に変わった。
+    static let keywordsAlpha = 3.0
 
     private let process = Process()
     private let input = Pipe()
@@ -55,7 +58,8 @@ final class Transcription: @unchecked Sendable {
     private let output: Task<Data, Never>
     private let errors: Task<Data, Never>
 
-    init(files: EngineFiles) throws {
+    /// `keywords` は辞書（`Vocabulary.keywords`）。nil なら辞書なしで認識する。
+    init(files: EngineFiles, keywords: String? = nil) throws {
         if let missing = files.missing() { throw Failure(message: missing) }
         let output = Pipe()
         let errors = Pipe()
@@ -64,8 +68,11 @@ final class Transcription: @unchecked Sendable {
             "asr", files.model.path,
             "--vad", files.vad.path,
             "--rate", String(Self.sampleRate),
-            "-",
         ]
+        if let keywords {
+            process.arguments! += ["--keywords", keywords, "--keywords-alpha", String(Self.keywordsAlpha)]
+        }
+        process.arguments!.append("-")
         process.standardInput = input
         process.standardOutput = output
         process.standardError = errors

@@ -48,4 +48,31 @@ final class PolishLiveTests: XCTestCase {
                                                         user: PolishPrompt.user(draft), timeout: 30)
         check(output, started, "ChatGPT")
     }
+
+    /// 辞書を用語集として渡すと、認識が同じ読みの別の字で書いた語（鷲尾 → 鷲生）を直すか。
+    func testGlossaryFixesHomophone() async throws {
+        let list = ProcessInfo.processInfo.environment["POKO_TEST_LLM"]?.components(separatedBy: ",") ?? []
+        let draft = "えー、明日は鷲尾さんと、あの、ひよりざかの研究室で会います"
+        let glossary = Vocabulary.glossary([Term(written: "鷲生", readings: "わしお"), Term(written: "日和坂", readings: "ひよりざか")])
+        let system = PolishPrompt.system(glossary: glossary)
+        var ran = false
+        for provider in [LLMProvider.local, .claude, .chatgpt] where list.contains(provider.rawValue) {
+            ran = true
+            let started = Date()
+            let output: String
+            if provider == .local {
+                let files = EngineFiles.locate()
+                let llm = LocalLLM(server: files.llamaServer, model: files.gemma, name: "dev.haruka.poko.tests")
+                defer { llm.stop() }
+                output = try await llm.complete(system: system, user: PolishPrompt.user(draft))
+            } else {
+                output = try await SubscriptionLLM.complete(provider, system: system, user: PolishPrompt.user(draft), timeout: 30)
+            }
+            print("用語集 \(provider.rawValue) \(String(format: "%.2f", Date().timeIntervalSince(started))) 秒: \(output)")
+            let accepted = PolishPrompt.accept(output, original: draft) ?? ""
+            XCTAssertTrue(accepted.contains("鷲生"), accepted)
+            XCTAssertTrue(accepted.contains("日和坂"), accepted)
+        }
+        if !ran { throw XCTSkip("POKO_TEST_LLM がないので飛ばす") }
+    }
 }

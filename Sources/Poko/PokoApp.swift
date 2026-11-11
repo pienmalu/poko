@@ -9,7 +9,7 @@ enum PokoMain {
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
-        app.setActivationPolicy(.regular)  // Dock にも出す（窓は出さない）
+        app.setActivationPolicy(.regular)  // Dock にも出す
         app.run()
     }
 }
@@ -19,10 +19,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var poko: Poko?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.mainMenu = Self.mainMenu()
+        NSApp.mainMenu = mainMenu()
         poko = Poko()
         poko?.launch()
-        // 窓がないので、起動したら隠して前のアプリに戻す（前に残ると、話した文の貼り先がなくなる）。
+        // 起動したら窓は出さずに隠して、前のアプリに戻す（前に残ると、話した文の貼り先がなくなる）。
         DispatchQueue.main.async { NSApp.hide(nil) }
     }
 
@@ -30,22 +30,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         poko?.shutDown()  // 推敲の llama-server を残さない
     }
 
-    /// Dock のアイコンを押したときは、メニューバーのメニューを開く。
+    /// Dock のアイコンを押したときは、窓を開く。
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        poko?.openMenu()
+        poko?.openWindow(nil)
         return false
     }
 
-    /// Poko が前に出ている間の、画面上端のメニュー（⌘Q と ⌘H が効くように）。
-    private static func mainMenu() -> NSMenu {
-        let app = NSMenu()
-        app.addItem(withTitle: "Poko を隠す", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        app.addItem(.separator())
-        app.addItem(withTitle: "Poko を終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        let holder = NSMenuItem(title: "Poko", action: nil, keyEquivalent: "")
-        holder.submenu = app
+    @objc func showHistory() { poko?.openWindow(.history) }
+    @objc func showDictionary() { poko?.openWindow(.dictionary) }
+
+    /// Poko が前に出ている間の、画面上端のメニュー。
+    /// 編集メニューがないと、辞書の入力欄で ⌘C・⌘V・⌘Z が効かない。
+    private func mainMenu() -> NSMenu {
         let main = NSMenu()
-        main.addItem(holder)
+        func submenu(_ title: String, _ items: [NSMenuItem]) {
+            let menu = NSMenu(title: title)
+            items.forEach(menu.addItem)
+            let holder = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            holder.submenu = menu
+            main.addItem(holder)
+        }
+        func item(_ title: String, _ action: Selector, _ key: String, _ modifiers: NSEvent.ModifierFlags = .command) -> NSMenuItem {
+            let entry = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            entry.keyEquivalentModifierMask = modifiers
+            return entry
+        }
+        submenu("Poko", [
+            item("Poko を隠す", #selector(NSApplication.hide(_:)), "h"),
+            .separator(),
+            item("Poko を終了", #selector(NSApplication.terminate(_:)), "q"),
+        ])
+        submenu("編集", [
+            item("取り消す", Selector(("undo:")), "z"),
+            item("やり直す", Selector(("redo:")), "z", [.command, .shift]),
+            .separator(),
+            item("カット", #selector(NSText.cut(_:)), "x"),
+            item("コピー", #selector(NSText.copy(_:)), "c"),
+            item("ペースト", #selector(NSText.paste(_:)), "v"),
+            item("すべてを選択", #selector(NSText.selectAll(_:)), "a"),
+        ])
+        let history = item("履歴", #selector(showHistory), "1")
+        let dictionary = item("辞書", #selector(showDictionary), "2")
+        history.target = self
+        dictionary.target = self
+        submenu("表示", [history, dictionary])
+        submenu("ウインドウ", [
+            item("閉じる", #selector(NSWindow.performClose(_:)), "w"),
+            item("しまう", #selector(NSWindow.performMiniaturize(_:)), "m"),
+        ])
         return main
     }
 }
@@ -68,6 +100,9 @@ final class Poko {
     private lazy var polisher = Polisher(files: files)
     private var menuBar: MenuBar!
     private var hotKey: HotKey!
+    private let activity = Activity()
+    private let vocabulary = VocabularyStore()
+    private lazy var window = MainWindow(activity: activity, vocabulary: vocabulary)
 
     private static let keySetting = "triggerKey"
 
@@ -78,10 +113,12 @@ final class Poko {
             copyLast: { [weak self] in self?.copyLast() },
             copyRaw: { [weak self] in self?.copyRaw() },
             choosePolish: { [weak self] in self?.choose($0) },
+            openWindow: { [weak self] in self?.openWindow($0) },
             allowAccessibility: { Permissions.askForAccessibility(); Permissions.openAccessibilitySettings() },
             allowMicrophone: { Permissions.openMicrophoneSettings() }
         ))
         menuBar.key = key
+        activity.keyLabel = key.label
         menuBar.polish = PolishMode.current
         hotKey = HotKey(key: key) { [weak self] in self?.handle($0) }
         hotKey.start()
@@ -121,7 +158,7 @@ final class Poko {
             return
         }
         do {
-            let session = try Transcription(files: files)
+            let session = try Transcription(files: files, keywords: vocabulary.keywords)
             recorder.onAudio = { pcm in session.feed(pcm) }
             do {
                 try recorder.start()
@@ -137,6 +174,7 @@ final class Poko {
         }
         menuBar.status = "聴いています…"
         menuBar.show(.recording)
+        activity.phase = .listening
         limit = Timer.scheduledTimer(withTimeInterval: Self.longest, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.handle(.timeLimit) }
         }
@@ -156,6 +194,7 @@ final class Poko {
         session = nil
         menuBar.status = ""
         menuBar.settle()
+        activity.phase = .idle
     }
 
     private func finish() {
@@ -169,6 +208,7 @@ final class Poko {
         self.session = nil
         menuBar.status = "文字にしています…"
         menuBar.show(.transcribing)
+        activity.phase = .transcribing
         Task {
             // 離してからも少しだけ録り続ける（言い終わりと同時に離しても語尾が切れないように）。
             try? await Task.sleep(for: .seconds(Self.tail))
@@ -180,14 +220,18 @@ final class Poko {
                 var note: String?
                 if !raw.isEmpty, polisher.mode != .off {
                     menuBar.status = "整えています…"
-                    (text, note) = await polisher.polish(raw)
+                    activity.phase = .polishing
+                    (text, note) = await polisher.polish(raw, glossary: Vocabulary.glossary(vocabulary.terms))
                 }
                 _ = flow.handle(.finished)
+                activity.phase = .idle
                 if text.isEmpty {
                     menuBar.status = "聞き取れませんでした"
                     menuBar.settle()
                 } else {
-                    Paster.paste(text)
+                    // Poko の窓が前にあるときは貼らない（辞書の入力欄などに入ってしまうため）。窓にだけ出す。
+                    if !(NSApp.isActive && window.isVisible) { Paster.paste(text) }
+                    activity.add(text: text, raw: raw, note: note)
                     menuBar.lastText = text
                     menuBar.lastRaw = raw
                     menuBar.status = note ?? ""
@@ -195,6 +239,7 @@ final class Poko {
                 }
             } catch {
                 _ = flow.handle(.finished)
+                activity.phase = .idle
                 fail(error.localizedDescription)
             }
         }
@@ -268,11 +313,12 @@ final class Poko {
         UserDefaults.standard.set(key.rawValue, forKey: Self.keySetting)
         hotKey.key = key
         menuBar.key = key
+        activity.keyLabel = key.label
     }
 
-    /// メニューバーのメニューを開く（Dock のアイコンを押したとき）。
-    func openMenu() {
-        menuBar.open()
+    /// 窓を開く（Dock のアイコンを押したときと、メニューから）。
+    func openWindow(_ pane: Activity.Pane?) {
+        window.show(pane)
     }
 
     private func choose(_ mode: PolishMode) {

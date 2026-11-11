@@ -43,6 +43,19 @@ enum PolishPrompt {
     - 前置きや説明、引用符は書かない。
     """
 
+    /// 辞書があれば、用語集として指示に足す。認識が同じ読みの別の字で書いた語（鷲尾 → 鷲生 など）を直させる。
+    static func system(glossary: String?) -> String {
+        guard let glossary else { return system }
+        return system + """
+
+        - <glossary> の語は、その書き方にする。同じ読みの語が別の字や仮名で書かれていたら、この書き方に直す。\
+        （ ）の中は読み。用語集にない語は変えない。
+        <glossary>
+        \(glossary)
+        </glossary>
+        """
+    }
+
     static func user(_ text: String) -> String {
         "<transcript>\(text)</transcript>"
     }
@@ -100,18 +113,19 @@ final class Polisher {
         }
     }
 
-    /// 推敲した文と、元の文を使ったならその理由を返す。
-    func polish(_ text: String) async -> (text: String, note: String?) {
+    /// 推敲した文と、元の文を使ったならその理由を返す。`glossary` は辞書（`Vocabulary.glossary`）。
+    func polish(_ text: String, glossary: String? = nil) async -> (text: String, note: String?) {
+        let system = PolishPrompt.system(glossary: glossary)
         guard let provider = mode.provider else { return (text, nil) }
         if let problem = problem() { return (text, "推敲せずに貼りました（\(problem)）") }
         do {
             let output: String
             if provider == .local {
                 output = try await withTimeout(Self.localTimeout) { [local] in
-                    try await local.complete(system: PolishPrompt.system, user: PolishPrompt.user(text))
+                    try await local.complete(system: system, user: PolishPrompt.user(text))
                 }
             } else {
-                output = try await SubscriptionLLM.complete(provider, system: PolishPrompt.system,
+                output = try await SubscriptionLLM.complete(provider, system: system,
                                                             user: PolishPrompt.user(text),
                                                             timeout: Self.subscriptionTimeout)
             }

@@ -6,12 +6,13 @@ macOS 14 以降の Apple Silicon の Mac で動く。
 メモ帳の [Mogu](https://github.com/pienmalu/mogu/tree/personal) と対になる。
 認識には [speech.cpp](https://github.com/nyosegawa/speech.cpp) と Haas-ja-v1.0（Q8_0）を使い、Mac の中だけで行う。
 音声は外に送らない。
+固有名詞や略語は、辞書に書き方と読みを足すと、その書き方で出る。
 認識した文から「えー」「あの」などを消す推敲もできる（既定はしない）。
 推敲は Mac の中の Gemma 4 でも、Claude や ChatGPT のサブスクでもできる。
 文字を外に送るのは、サブスクを選んだときだけだ。
 
 アプリは Dock とメニューバーに出る。
-窓は出さない。
+Dock のアイコンを押すと、話した文の履歴と辞書の窓が開く。
 
 ## 使い方
 
@@ -39,8 +40,43 @@ Dock に置くには、開いている間に Dock のアイコンを右クリッ
 - 1 回に録れるのは 3 分まで。3 分経つと、離すのを待たずに認識して貼る。
 - 貼り付けにはクリップボードを一瞬借りる。元の中身は 0.5 秒後に戻す。
 - 文字を入れられる場所がなかったときなど、貼れなかったときは、メニュー → 最後の結果をコピー で取り出せる。
-- Dock のアイコンを押すと、メニューバーと同じメニューが開く。
-  Poko は起動したときと、このメニューを閉じたときに隠れて、前に使っていたアプリに戻る（前に残ると、話した文の貼り先がなくなるため）。
+- Dock のアイコンを押すと、窓が開く（メニュー → 履歴を開く・辞書を開く でも開く）。
+  Poko は起動したときと、窓を閉じたときに隠れて、前に使っていたアプリに戻る（前に残ると、話した文の貼り先がなくなるため）。
+- 窓が前にある間に話した文は、貼らずに窓にだけ出す。
+
+## 窓（履歴と辞書）
+
+上の切り替えで「履歴」と「辞書」を行き来する（⌘1・⌘2）。
+
+- **履歴**: 話した文が新しい順に並ぶ。文は選んでコピーでき、右クリックで推敲する前の文もコピーできる。
+  Poko を起動してからの 200 件まで。ディスクには書かないので、終了すると消える。
+- **辞書**: 固有名詞や略語を、書き方と読みの組で足す（⌘N で足す、⌫ で消す）。
+  変えたらすぐ保存し、次に話したときから効く。
+  下の帯に最後の結果が出るので、語を足してそのまま話して試せる。
+  ⚠︎ は、その語が効きにくそうな理由（指を載せると出る）。
+
+## 辞書（固有名詞・略語）
+
+認識に使う Haas-ja-v1.0 には、書き方と読みを渡すと、その読みに聞こえた所をその書き方で書く機能がある（speech.cpp の `--keywords`）。
+Poko の辞書は、これに渡す。
+
+| 書き方 | 読み | 辞書なし → 辞書あり（合成音声で試した例） |
+|---|---|---|
+| PoC | ぴーおーしー | boc → PoC |
+| MTG | えむてぃーじー | mtg → MTG |
+| Silero | しれろ | シレロ → Silero |
+
+- 読みはひらがなかカタカナで書く。いくつもあるときは「、」で区切る。
+  読みがない語はほとんど効かず、別の所が置き換わることもあった。
+- 読みが短い語（2 文字まで）は、普通の言葉の中でも置き換わる。
+  「もぐ」を Mogu にすると、「もぐもぐ」が MoguMogu に、「モグラ」が Moguラ になった。
+  効かせる強さを下げても変わらなかった。
+- 漢字の語（日和坂、鷲生 など）は、認識だけでは効きにくい。
+  鷲生（わしお）は「鷲尾」のままだった。
+  推敲を使うと、辞書を用語集として LLM にも渡すので、同じ読みの別の字はそこで直る（Mac の中の Gemma 4 で、鷲尾 → 鷲生 に直った）。
+- ファイルは `~/Library/Application Support/Poko/dictionary.txt`。1行に1語、「書き方=読み,読み」で、手で直してもよい（窓を開くと読み直す）。
+  辞書の画面の右下のフォルダのボタンで、Finder に出せる。
+- 本人の声ではまだ試していない。上の例は、どれも `say` の声で試したもの。
 
 ## 推敲（フィラーを消す）
 
@@ -159,6 +195,9 @@ Gemma は `llama-server` を `127.0.0.1` だけで待ち受けさせて頼む。
 | `Paster.swift` | クリップボードを借りて ⌘V を送り、元に戻す |
 | `StatusIcon.swift` | メニューバーのアイコン（ばねで動く5本のバー）の動きと描画 |
 | `MenuBar.swift` | メニューバーの項目とメニュー |
+| `MainWindow.swift` | 窓（履歴と辞書）。SwiftUI の標準の部品だけで組む |
+| `Activity.swift` | 窓に出す、いまの状態と認識結果（メモリだけ） |
+| `Vocabulary.swift` | 辞書の読み書きと、認識・推敲に渡す形への変換 |
 | `Permissions.swift` | アクセシビリティとマイクの許可 |
 
 すぐ変えたくなりそうな値は次のとおり。
@@ -171,6 +210,7 @@ Gemma は `llama-server` を `127.0.0.1` だけで待ち受けさせて頼む。
 | クリップボードを戻すまで | `Paster.restoreDelay` | 0.5 秒 |
 | 区間のつなぎ方 | `Transcript.join` | 句読点がなければ「、」 |
 | Gemma を止めるまで | `LocalLLM.idleLimit` | 2 分 |
+| 辞書を効かせる強さ | `Transcription.keywordsAlpha` | 3（speech.cpp の既定は 2。4 では辞書にない所まで置き換わった） |
 | 推敲を待つ上限 | `Polisher.localTimeout` / `subscriptionTimeout` | 30 秒 / 10 秒 |
 | 推敲の指示 | `PolishPrompt.system` | フィラーと言い直しを消し、句読点を整える |
 | VAD の閾値など | `Transcription` の `process.arguments` に `--threshold` `--min-silence-duration-ms` などを足す | speech.cpp の既定 |
@@ -181,6 +221,8 @@ Gemma は `llama-server` を `127.0.0.1` だけで待ち受けさせて頼む。
 ./scripts/test.sh                       # 単体テスト（押し離しの判定、行のつなぎ方、アイコンの動き）
 POKO_HOME=$PWD POKO_TEST_WAV=voice.wav ./scripts/test.sh   # 本物の speech.cpp で認識するテストも走らせる（16 kHz、16 bit、モノラルの WAV）
 POKO_HOME=$PWD POKO_TEST_WAV=voice.wav POKO_TEST_AUDIO=voice48k.wav ./scripts/test.sh  # マイクの形式からの変換も確かめる
+POKO_HOME=$PWD POKO_TEST_WAV=voice.wav POKO_TEST_KEYWORDS=dictionary.txt ./scripts/test.sh  # 辞書を付けて認識する
+./tools/render-window.sh                # 窓をライトとダーク、空と中身ありで build/window/ に PNG で描く（画面収録の許可がないと中身だけ）
 POKO_HOME=$PWD POKO_TEST_LLM=local,claude,chatgpt ./scripts/test.sh   # 本物の LLM で推敲する（claude と chatgpt は文字を送る）
 ./tools/render-icon.sh                  # メニューバーのアイコンの全状態をコマ送りで build/icon-frames.png に描く（明暗、1x と 2x）
 ./tools/render-app-icon.sh              # アプリのアイコン Resources/AppIcon.icns を、正方形の絵 Resources/AppIcon.png から作り直す

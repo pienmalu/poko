@@ -1,6 +1,6 @@
 import AppKit
 
-/// メニューバーの項目。アイコンを動かし、メニューを出す。窓は出さない。
+/// メニューバーの項目。アイコンを動かし、メニューを出す。
 @MainActor
 final class MenuBar: NSObject, NSMenuDelegate {
     struct Actions {
@@ -8,6 +8,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
         var copyLast: () -> Void
         var copyRaw: () -> Void
         var choosePolish: (PolishMode) -> Void
+        var openWindow: (Activity.Pane) -> Void
         var allowAccessibility: () -> Void
         var allowMicrophone: () -> Void
     }
@@ -30,7 +31,6 @@ final class MenuBar: NSObject, NSMenuDelegate {
     private var timer: Timer?
     private let clock = Date()
     private var errorTimer: Timer?
-    private var hideOnClose = false
 
     init(actions: Actions) {
         self.actions = actions
@@ -100,19 +100,6 @@ final class MenuBar: NSObject, NSMenuDelegate {
         refreshMenu()
     }
 
-    /// メニューを開く（Dock のアイコンを押したとき）。
-    /// 閉じたら Poko を隠して、前のアプリに戻す。Poko が前に残ると、次に話した文の貼り先がなくなるため。
-    func open() {
-        hideOnClose = true
-        item.button?.performClick(nil)
-    }
-
-    func menuDidClose(_ menu: NSMenu) {
-        guard hideOnClose else { return }
-        hideOnClose = false
-        NSApp.hide(nil)
-    }
-
     private func refreshMenu() {
         menu.removeAllItems()
         menu.addItem(disabled(status.isEmpty ? "\(key.label) を押しながら話す" : status))
@@ -155,6 +142,9 @@ final class MenuBar: NSObject, NSMenuDelegate {
             menu.addItem(raw)
         }
 
+        menu.addItem(.separator())
+        menu.addItem(button("履歴を開く") { [actions] in actions.openWindow(.history) })
+        menu.addItem(button("辞書を開く") { [actions] in actions.openWindow(.dictionary) })
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Poko を終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
