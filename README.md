@@ -2,18 +2,25 @@
 
 キーを押しながら話して離すと、いま使っているアプリのカーソル位置に文字が入る、日本語の音声入力。
 macOS 14 以降の Apple Silicon の Mac で動く。
-名前は、話すと文字が「ぽこっ」と出ることから。メモ帳の [Mogu](../mogu) と対になる。
+名前は、話すと文字が「ぽこっ」と出ることから付けた。
+メモ帳の [Mogu](../mogu) と対になる。
 認識には [speech.cpp](https://github.com/nyosegawa/speech.cpp) と Haas-ja-v1.0（Q8_0）を使い、Mac の中だけで行う。
 音声も文字も外には送らない。
 
-アプリはメニューバーにだけ出て、窓は出さない。
+アプリは Dock とメニューバーに出る。
+窓は出さない。
 
 ## 使い方
 
 ```bash
-./scripts/setup.sh          # 最初に1回。speech.cpp 0.10.1 と、モデル（0.66 GB）を取ってくる
-./scripts/build-app.sh --open
+./scripts/setup.sh                        # 最初に1回。speech.cpp 0.10.1 と、モデル（0.66 GB）を取ってくる
+./scripts/build-app.sh --install --open   # アプリを作って ~/Applications に入れ、開く
 ```
+
+`--install` を付けると、`~/Applications/Poko.app` に入る。
+動いている Poko は先に終了させてから入れ替える。
+Dock に置くには、開いている間に Dock のアイコンを右クリックし、オプション → Dock に追加 を選ぶ。
+同じメニューの「ログイン時に開く」で、Mac を起動したときに開くようにもできる。
 
 1. 初回は「アクセシビリティ」と「マイク」の許可を求められるので、両方許可する。
    アクセシビリティは システム設定 → プライバシーとセキュリティ → アクセシビリティ で Poko をオンにする。
@@ -28,6 +35,8 @@ macOS 14 以降の Apple Silicon の Mac で動く。
 - 1 回に録れるのは 3 分まで。3 分経つと、離すのを待たずに認識して貼る。
 - 貼り付けにはクリップボードを一瞬借りる。元の中身は 0.5 秒後に戻す。
 - 文字を入れられる場所がなかったときなど、貼れなかったときは、メニュー → 最後の結果をコピー で取り出せる。
+- Dock のアイコンを押すと、メニューバーと同じメニューが開く。
+  Poko は起動したときと、このメニューを閉じたときに隠れて、前に使っていたアプリに戻る（前に残ると、話した文の貼り先がなくなるため）。
 
 ## メニューバーのアイコン
 
@@ -70,7 +79,7 @@ tccutil reset Accessibility dev.haruka.poko
 署名が変わらないので、許可は1回で済む。
 
 ```bash
-POKO_SIGN_IDENTITY="Poko Local" ./scripts/build-app.sh --open
+POKO_SIGN_IDENTITY="Poko Local" ./scripts/build-app.sh --install --open
 ```
 
 ## 仕組み
@@ -131,15 +140,16 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 ./scripts/test.sh                       # 単体テスト（押し離しの判定、行のつなぎ方、アイコンの動き）
 POKO_HOME=$PWD POKO_TEST_WAV=voice.wav ./scripts/test.sh   # 本物の speech.cpp で認識するテストも走らせる（16 kHz、16 bit、モノラルの WAV）
 POKO_HOME=$PWD POKO_TEST_WAV=voice.wav POKO_TEST_AUDIO=voice48k.wav ./scripts/test.sh  # マイクの形式からの変換も確かめる
-./tools/render-icon.sh                  # アイコンの全状態をコマ送りで build/icon-frames.png に描く（明暗、1x と 2x）
-./tools/render-app-icon.sh              # アプリのアイコン Resources/Poko.icns を、正方形の絵 Resources/AppIcon.png から作り直す
+./tools/render-icon.sh                  # メニューバーのアイコンの全状態をコマ送りで build/icon-frames.png に描く（明暗、1x と 2x）
+./tools/render-app-icon.sh              # アプリのアイコン Resources/AppIcon.icns を、正方形の絵 Resources/AppIcon.png から作り直す
 ```
 
 - ビルドは SwiftPM を使わず、`swiftc` で直接行う。`Package.swift` は Xcode で開くためのもの。
 - アプリはビルドしたフォルダ（`Info.plist` の `PokoHome`）の `vendor/speech` と `models/` を使う。
-  フォルダを動かしたら、ビルドし直す。
+  `~/Applications` に入れたアプリも同じで、フォルダを動かしたらビルドし直す。
   `POKO_HOME=<フォルダ>` を付けて起動すると、別の場所を使える。
 - speech.cpp を上げるときは、`scripts/setup.sh` の `VERSION` を変えて実行し直す。
+- アプリのアイコンの絵は自作アプリで共通の黒いスライム（`~/workspace/dev/brand/black-slime`）から描いた。描き方とほかの案はそちらの README にある。
 
 ## ライセンス
 
