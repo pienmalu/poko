@@ -157,6 +157,53 @@ final class LocalLLM {
         return content
     }
 
+    /// 答えを書いた分だけ少しずつ渡しながら頼み、最後に全部を返す。
+    /// onPartial には、それまでに書かれた全文を渡す（このメインスレッドの上で呼ぶ）。
+    func stream(system: String, user: String, temperature: Double = 0.3,
+                onPartial: @MainActor (String) -> Void) async throws -> String {
+        let base = try await endpoint()
+        var request = URLRequest(url: base.appendingPathComponent("v1/chat/completions"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 120
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "messages": [
+                ["role": "system", "content": system],
+                ["role": "user", "content": user],
+            ],
+            "temperature": temperature,
+            "stream": true,
+            "chat_template_kwargs": ["enable_thinking": false],
+        ] as [String: Any])
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard status == 200 else {
+            var body = ""
+            for try await line in bytes.lines { body += line }
+            throw LLMFailure(message: body.contains("context") || body.contains("exceed")
+                             ? "Gemma に渡す文が長すぎます（\(contextTokens) トークンまで）"
+                             : "Gemma から答えを受け取れませんでした（HTTP \(status)）")
+        }
+        var output = ""
+        var finish: String?
+        for try await line in bytes.lines {
+            try Task.checkCancellation()
+            guard line.hasPrefix("data: ") else { continue }
+            let payload = line.dropFirst(6)
+            if payload == "[DONE]" { break }
+            guard let json = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
+                  let choice = (json["choices"] as? [[String: Any]])?.first else { continue }
+            if let reason = choice["finish_reason"] as? String { finish = reason }
+            if let delta = choice["delta"] as? [String: Any], let piece = delta["content"] as? String {
+                output += piece
+                onPartial(output)
+            }
+        }
+        touch()
+        guard finish == "stop" else { throw LLMFailure(message: "Gemma の答えが途中で切れました") }
+        return output
+    }
+
     func stop() {
         idleTimer?.invalidate()
         starting?.cancel()
@@ -273,14 +320,16 @@ enum SubscriptionLLM {
     }
 
     /// CLI に渡す引数。純粋な関数にしてテストする。
-    static func arguments(for provider: LLMProvider, system: String, user: String) -> [String] {
+    /// `stream` が true なら、claude は書いた分だけ JSON の行で返す（codex は最後にまとめて返すだけ）。
+    static func arguments(for provider: LLMProvider, system: String, user: String, stream: Bool = false) -> [String] {
         switch provider {
         case .claude:
             // ツール、設定、MCP、スキル、会話の保存を使わず、答えるだけにする。
             // --bare はサブスクのログインを読まないので使わない。
-            return ["-p", "--model", claudeModel, "--tools", "", "--setting-sources", "",
-                    "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence",
-                    "--system-prompt", system, user]
+            var args = ["-p", "--model", claudeModel, "--tools", "", "--setting-sources", "",
+                        "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"]
+            if stream { args += ["--output-format", "stream-json", "--include-partial-messages", "--verbose"] }
+            return args + ["--system-prompt", system, user]
         case .chatgpt:
             // 設定と規則を読まず、読み取り専用で、会話を残さない。指示と本文は1つのプロンプトにまとめる。
             return ["exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules",
@@ -291,8 +340,11 @@ enum SubscriptionLLM {
         }
     }
 
-    /// 1回だけ頼んで、答えを全部返す。`timeout` 秒で打ち切る。
-    static func complete(_ provider: LLMProvider, system: String, user: String, timeout: TimeInterval) async throws -> String {
+    /// 1回だけ頼んで、答えを全部返す。`timeout` 秒で打ち切る。呼んだ Task を取り消すと、CLI も止める。
+    /// onPartial を渡すと、それまでに書かれた全文を少しずつ渡す（claude だけ。codex は最後に1回）。どのスレッドから呼ぶかは決まっていない。
+    static func complete(_ provider: LLMProvider, system: String, user: String, timeout: TimeInterval,
+                         onPartial: (@Sendable (String) -> Void)? = nil) async throws -> String {
+        let streaming = onPartial != nil && provider == .claude
         let name = provider == .claude ? "Claude Code（claude）" : "Codex（codex）"
         guard let executable = locate(provider) else {
             throw LLMFailure(message: "\(name) が見つかりません")
@@ -304,7 +356,7 @@ enum SubscriptionLLM {
 
         let process = Process()
         process.executableURL = executable
-        process.arguments = arguments(for: provider, system: system, user: user)
+        process.arguments = arguments(for: provider, system: system, user: user, stream: streaming)
         process.currentDirectoryURL = workdir
         var environment = ProcessInfo.processInfo.environment
         // codex は node で動くので、node のあるフォルダ（codex と同じフォルダ）を PATH に入れる。
@@ -327,15 +379,25 @@ enum SubscriptionLLM {
         DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: watchdog)
         defer { watchdog.cancel() }
 
-        async let text = readAll(output.fileHandleForReading)
-        async let log = readAll(errors.fileHandleForReading)
-        let (out, err) = await (text, log)
-        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-            DispatchQueue.global().async {
-                process.waitUntilExit()
-                done.resume()
+        let parser = StreamParser()
+        let (out, err) = await withTaskCancellationHandler {
+            async let text = readAll(output.fileHandleForReading) { line in
+                guard streaming, let partial = parser.feed(line) else { return }
+                onPartial?(partial)
             }
+            async let log = readAll(errors.fileHandleForReading)
+            let result = await (text, log)
+            await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+                DispatchQueue.global().async {
+                    process.waitUntilExit()
+                    done.resume()
+                }
+            }
+            return result
+        } onCancel: {
+            if process.isRunning { process.terminate() }
         }
+        try Task.checkCancellation()
         guard process.terminationReason == .exit, process.terminationStatus == 0 else {
             if process.terminationReason == .uncaughtSignal {
                 throw LLMFailure(message: "\(name) が \(Int(timeout)) 秒で答えませんでした")
@@ -344,12 +406,61 @@ enum SubscriptionLLM {
                 .components(separatedBy: .newlines).last { !$0.trimmingCharacters(in: .whitespaces).isEmpty } ?? ""
             throw LLMFailure(message: "\(name) が失敗しました: \(last.prefix(120))")
         }
-        return String(decoding: out, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        if streaming {
+            guard let result = parser.result else { throw LLMFailure(message: "\(name) の答えを読めませんでした") }
+            return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let text = String(decoding: out, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        onPartial?(text)
+        return text
     }
 
-    private static func readAll(_ handle: FileHandle) async -> Data {
+    /// claude の stream-json を1行ずつ読み、書かれた文を積み上げる。
+    final class StreamParser: @unchecked Sendable {
+        private(set) var text = ""
+        /// 最後に届く result の行の本文。
+        private(set) var result: String?
+
+        /// 文が増えたら、それまでの全文を返す。
+        func feed(_ line: String) -> String? {
+            guard let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return nil }
+            switch json["type"] as? String {
+            case "stream_event":
+                guard let event = json["event"] as? [String: Any],
+                      let delta = event["delta"] as? [String: Any],
+                      delta["type"] as? String == "text_delta",
+                      let piece = delta["text"] as? String else { return nil }
+                text += piece
+                return text
+            case "result":
+                result = json["result"] as? String
+                return nil
+            default:
+                return nil
+            }
+        }
+    }
+
+    /// 終わりまで読む。onLine を渡すと、1行届くたびに呼ぶ。
+    private static func readAll(_ handle: FileHandle, onLine: ((String) -> Void)? = nil) async -> Data {
         await withCheckedContinuation { done in
-            DispatchQueue.global().async { done.resume(returning: handle.readDataToEndOfFile()) }
+            DispatchQueue.global().async {
+                guard let onLine else { return done.resume(returning: handle.readDataToEndOfFile()) }
+                var all = Data()
+                var pending = Data()
+                while true {
+                    let chunk = handle.availableData
+                    if chunk.isEmpty { break }
+                    all.append(chunk)
+                    pending.append(chunk)
+                    while let newline = pending.firstIndex(of: 0x0A) {
+                        onLine(String(decoding: pending[pending.startIndex..<newline], as: UTF8.self))
+                        pending.removeSubrange(pending.startIndex...newline)
+                    }
+                }
+                if !pending.isEmpty { onLine(String(decoding: pending, as: UTF8.self)) }
+                done.resume(returning: all)
+            }
         }
     }
 }

@@ -54,6 +54,24 @@ final class PolishTests: XCTestCase {
         XCTAssertEqual(args[args.firstIndex(of: "-s")! + 1], "read-only")
     }
 
+    func testClaudeStreamingArguments() {
+        let args = SubscriptionLLM.arguments(for: .claude, system: "指示", user: "本文", stream: true)
+        XCTAssertEqual(args[args.firstIndex(of: "--output-format")! + 1], "stream-json")
+        XCTAssertTrue(args.contains("--include-partial-messages"))
+        XCTAssertEqual(args.last, "本文")
+        XCTAssertFalse(SubscriptionLLM.arguments(for: .claude, system: "指示", user: "本文").contains("--output-format"))
+    }
+
+    func testStreamParserCollectsTextDeltas() {
+        let parser = SubscriptionLLM.StreamParser()
+        XCTAssertNil(parser.feed(#"{"type":"system","subtype":"init"}"#))
+        XCTAssertEqual(parser.feed(#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"1、"}}}"#), "1、")
+        XCTAssertEqual(parser.feed(#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"2"}}}"#), "1、2")
+        XCTAssertNil(parser.feed("壊れた行"))
+        XCTAssertNil(parser.feed(#"{"type":"result","subtype":"success","result":"1、2"}"#))
+        XCTAssertEqual(parser.result, "1、2")
+    }
+
     func testOnlyLocalKeepsTextInside() {
         XCTAssertFalse(LLMProvider.local.sendsOut)
         XCTAssertTrue(LLMProvider.claude.sendsOut)
