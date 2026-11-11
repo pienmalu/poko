@@ -131,7 +131,7 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 KOE_HOME=$PWD KOE_TEST_WAV=voice.wav ./scripts/test.sh   # 本物の speech.cpp で認識するテストも走らせる（16 kHz、16 bit、モノラルの WAV）
 KOE_HOME=$PWD KOE_TEST_WAV=voice.wav KOE_TEST_AUDIO=voice48k.wav ./scripts/test.sh  # マイクの形式からの変換も確かめる
 ./tools/render-icon.sh                  # アイコンの全状態をコマ送りで build/icon-frames.png に描く（明暗、1x と 2x）
-./tools/render-app-icon.sh              # アプリのアイコン Resources/Koe.icns を作り直す
+./tools/render-app-icon.sh              # アプリのアイコン Resources/Koe.icns を、正方形の絵 Resources/AppIcon.png から作り直す
 ```
 
 - ビルドは SwiftPM を使わず、`swiftc` で直接行う。`Package.swift` は Xcode で開くためのもの。
