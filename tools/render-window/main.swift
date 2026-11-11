@@ -11,7 +11,7 @@ func settle(_ seconds: Double = 0.6) { RunLoop.main.run(until: Date().addingTime
 
 @MainActor
 func render(_ name: String, dark: Bool, terms: [Term], pane: Activity.Pane, phase: Activity.Phase = .idle,
-            entries: [(String, String, String?)] = []) {
+            entries: [(String, String, String?)] = [], notice: String? = nil) {
     let dictionary = FileManager.default.temporaryDirectory.appendingPathComponent("poko-render-\(name).txt")
     try? Vocabulary.serialize(terms).write(to: dictionary, atomically: true, encoding: .utf8)
     setenv("POKO_DICTIONARY", dictionary.path, 1)
@@ -22,6 +22,7 @@ func render(_ name: String, dark: Bool, terms: [Term], pane: Activity.Pane, phas
     }
     activity.pane = pane
     activity.phase = phase
+    activity.notice = notice
     let window = MainWindow.makeWindow(activity: activity, vocabulary: VocabularyStore())
     window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     window.setFrame(NSRect(x: 80, y: 80, width: 520, height: 560), display: true)
@@ -60,12 +61,48 @@ let entries: [(String, String, String?)] = [
     ("今日は天気が良いので、公園で子供と遊んだ。", "今日は天気が良いので、公園で子供と遊んだ。", nil),
 ]
 
+/// ⌘N で語を足し、そのまま打った文字が新しい行の「書き方」に入るかを確かめて撮る。
+@MainActor
+func renderAdding() {
+    let dictionary = FileManager.default.temporaryDirectory.appendingPathComponent("poko-render-adding.txt")
+    try? Vocabulary.serialize(Array(terms.prefix(3))).write(to: dictionary, atomically: true, encoding: .utf8)
+    setenv("POKO_DICTIONARY", dictionary.path, 1)
+    let activity = Activity()
+    activity.pane = .dictionary
+    let store = VocabularyStore()
+    let window = MainWindow.makeWindow(activity: activity, vocabulary: store)
+    window.appearance = NSAppearance(named: .aqua)
+    window.setFrame(NSRect(x: 80, y: 80, width: 520, height: 560), display: true)
+    NSApp.activate(ignoringOtherApps: true)
+    window.makeKeyAndOrderFront(nil)
+    settle()
+    func key(_ characters: String, _ flags: NSEvent.ModifierFlags = []) -> NSEvent {
+        NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: 0,
+                         windowNumber: window.windowNumber, context: nil, characters: characters,
+                         charactersIgnoringModifiers: characters, isARepeat: false, keyCode: 0)!
+    }
+    _ = window.performKeyEquivalent(with: key("n", .command))
+    settle()
+    for character in "SwiftUI" { NSApp.sendEvent(key(String(character))) }
+    settle()
+    print("⌘N のあと打った文字: 新しい行の書き方 = \"\(store.terms.last?.written ?? "(行がない)")\"（\(store.terms.count) 語）")
+    let file = out.appendingPathComponent("dictionary-adding-light.png")
+    let shot = Process()
+    shot.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+    shot.arguments = ["-x", "-o", "-l\(window.windowNumber)", file.path]
+    try? shot.run()
+    shot.waitUntilExit()
+    window.orderOut(nil)
+}
+
 MainActor.assumeIsolated {
+    renderAdding()
     for dark in [false, true] {
         let tone = dark ? "dark" : "light"
         render("history-empty-\(tone)", dark: dark, terms: [], pane: .history)
         render("history-\(tone)", dark: dark, terms: terms, pane: .history, phase: .listening, entries: entries)
         render("dictionary-empty-\(tone)", dark: dark, terms: [], pane: .dictionary)
+        render("history-notice-\(tone)", dark: dark, terms: terms, pane: .history, entries: entries, notice: "聞き取れませんでした")
         render("dictionary-\(tone)", dark: dark, terms: terms, pane: .dictionary, entries: entries)
     }
 }

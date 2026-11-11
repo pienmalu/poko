@@ -84,7 +84,7 @@ struct HistoryView: View {
     @ObservedObject var activity: Activity
 
     var body: some View {
-        if activity.entries.isEmpty && activity.phase == .idle {
+        if activity.entries.isEmpty && activity.phase == .idle && activity.notice == nil {
             ContentUnavailableView {
                 Label("\(activity.keyLabel) を押しながら話す", systemImage: "waveform")
             } description: {
@@ -94,6 +94,9 @@ struct HistoryView: View {
             List {
                 if activity.phase != .idle {
                     LiveRow(phase: activity.phase)
+                        .listRowSeparator(.hidden)
+                } else if let notice = activity.notice {
+                    NoticeRow(text: notice)
                         .listRowSeparator(.hidden)
                 }
                 ForEach(activity.entries) { entry in
@@ -135,6 +138,19 @@ struct LiveRow: View {
         case .transcribing: "文字にしています…"
         case .polishing: "整えています…"
         }
+    }
+}
+
+/// 直近の録音が文にならなかったときの1行。
+struct NoticeRow: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.circle")
+            .foregroundStyle(.secondary)
+            .font(.system(size: 14))
+            .padding(.vertical, 8)
+            .transition(.opacity)
     }
 }
 
@@ -310,7 +326,9 @@ struct TryBar: View {
                 case .listening: Text("聴いています…").foregroundStyle(.secondary)
                 case .transcribing, .polishing: Text("文字にしています…").foregroundStyle(.secondary)
                 case .idle:
-                    if let last = activity.entries.first {
+                    if let notice = activity.notice {
+                        Label(notice, systemImage: "exclamationmark.circle").foregroundStyle(.secondary).lineLimit(2)
+                    } else if let last = activity.entries.first {
                         Text(last.text).textSelection(.enabled).lineLimit(2)
                     } else {
                         Text("\(activity.keyLabel) を押しながら話すと、ここで試せます").foregroundStyle(.secondary)

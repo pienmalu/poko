@@ -79,6 +79,9 @@ enum Vocabulary {
         if readings.isEmpty {
             return isKana(written) ? nil : "読みがないと、ほとんど効きません"
         }
+        if readings.contains(where: { !isKana($0) }) {
+            return "読みはひらがなかカタカナで書きます（ローマ字の読みでは、関係のない所が置き換わりました）"
+        }
         if readings.contains(where: { $0.count <= 2 }) {
             return "読みが短いと、「もぐもぐ」のような普通の言葉の中でも置き換わることがあります"
         }
@@ -108,14 +111,15 @@ enum Vocabulary {
         return readings.isEmpty ? written : "\(written)=\(readings.joined(separator: ","))"
     }
 
-    /// 1行の形を壊す文字（改行と「=」）を除く。
+    /// 1行の形を壊す文字（改行と「=」、先頭の「#」）を除く。先頭が「#」だと、読み直したときにコメントになるため。
     private static func clean(_ text: String) -> String {
-        text.components(separatedBy: .newlines).joined()
+        let text = text.components(separatedBy: .newlines).joined()
             .replacingOccurrences(of: "=", with: "").replacingOccurrences(of: "＝", with: "")
+        return String(text.drop { $0 == "#" || $0 == " " })
     }
 
     private static func isKana(_ text: String) -> Bool {
-        text.unicodeScalars.allSatisfy { (0x3040...0x30FF).contains($0.value) }
+        !text.isEmpty && text.unicodeScalars.allSatisfy { (0x3040...0x30FF).contains($0.value) }
     }
 
     private static func isKanji(_ scalar: Unicode.Scalar) -> Bool {

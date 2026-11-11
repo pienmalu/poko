@@ -23,8 +23,11 @@ final class Activity: ObservableObject {
     @Published private(set) var entries: [Entry] = []  // 新しいものが先
     @Published var pane: Pane = .history
     @Published var keyLabel = TriggerKey.rightCommand.label
+    /// 直近の録音が文にならなかった理由（失敗、聞き取れなかった）。次に話し始めたら消す。
+    @Published var notice: String?
 
     func add(text: String, raw: String, note: String?, at date: Date = Date()) {
+        notice = nil
         entries.insert(Entry(date: date, text: text, raw: raw == text ? nil : raw, note: note), at: 0)
         if entries.count > Self.limit { entries.removeLast(entries.count - Self.limit) }
     }

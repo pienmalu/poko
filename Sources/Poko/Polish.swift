@@ -20,8 +20,8 @@ enum PolishMode: String, CaseIterable {
         switch self {
         case .off: "しない"
         case .local: "Mac の中の Gemma 4"
-        case .claude: "Claude（文字を Anthropic に送る）"
-        case .chatgpt: "ChatGPT（文字を OpenAI に送る）"
+        case .claude: "Claude（文字と辞書を Anthropic に送る）"
+        case .chatgpt: "ChatGPT（文字と辞書を OpenAI に送る）"
         }
     }
 

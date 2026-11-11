@@ -32,6 +32,7 @@ final class VocabularyTests: XCTestCase {
     /// 行の形を壊す文字は除く。
     func testRemovesEqualsAndNewlinesFromWritten() {
         XCTAssertEqual(Vocabulary.keywords([Term(written: "a=b\nc", readings: "えー")]), "abc=えー")
+        XCTAssertEqual(Vocabulary.keywords([Term(written: "#C", readings: "しーしゃーぷ")]), "C=しーしゃーぷ")
     }
 
     func testGlossaryShowsReadingsInParentheses() {
@@ -47,6 +48,8 @@ final class VocabularyTests: XCTestCase {
         XCTAssertNotNil(Vocabulary.hint(for: Term(written: "日和坂", readings: "ひよりざか"))) // 漢字
         XCTAssertNil(Vocabulary.hint(for: Term(written: "PoC", readings: "ぴーおーしー")))
         XCTAssertNil(Vocabulary.hint(for: Term(written: "", readings: "")))                // 書きかけ
+        XCTAssertNotNil(Vocabulary.hint(for: Term(written: "PoC", readings: "poc")))       // 仮名でない読み
+        XCTAssertNil(Vocabulary.hint(for: Term(written: "PoC", readings: "ピーオーシー")))  // カタカナでもよい
     }
 
     func testPolishPromptAddsGlossaryOnlyWhenGiven() {

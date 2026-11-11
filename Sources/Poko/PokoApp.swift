@@ -175,6 +175,7 @@ final class Poko {
         menuBar.status = "聴いています…"
         menuBar.show(.recording)
         activity.phase = .listening
+        activity.notice = nil
         limit = Timer.scheduledTimer(withTimeInterval: Self.longest, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.handle(.timeLimit) }
         }
@@ -226,6 +227,7 @@ final class Poko {
                 _ = flow.handle(.finished)
                 activity.phase = .idle
                 if text.isEmpty {
+                    activity.notice = "聞き取れませんでした"
                     menuBar.status = "聞き取れませんでした"
                     menuBar.settle()
                 } else {
@@ -255,6 +257,7 @@ final class Poko {
     }
 
     private func fail(_ message: String) {
+        activity.notice = message
         menuBar.status = message
         menuBar.show(.error)
         NSSound.beep()
