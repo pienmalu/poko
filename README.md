@@ -3,7 +3,7 @@
 キーを押しながら話して離すと、いま使っているアプリのカーソル位置に文字が入る、日本語の音声入力。
 macOS 14 以降の Apple Silicon の Mac で動く。
 名前は、話すと文字が「ぽこっ」と出ることから付けた。
-メモ帳の [Mogu](../mogu) と対になる。
+メモ帳の [Mogu](https://github.com/pienmalu/mogu/tree/personal) と対になる。
 認識には [speech.cpp](https://github.com/nyosegawa/speech.cpp) と Haas-ja-v1.0（Q8_0）を使い、Mac の中だけで行う。
 音声も文字も外には送らない。
 
