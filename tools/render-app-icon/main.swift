@@ -1,4 +1,4 @@
-// アプリのアイコン（許可のダイアログや、システム設定の一覧に出る）を描く。
+// アプリのアイコン（Dock、Finder、許可のダイアログなどに出る）を描く。
 // 正方形の絵 Resources/AppIcon.png を、macOS のアイコンの角丸の形に切り抜き、影を付ける。
 // 使い方: ./tools/render-app-icon.sh
 import AppKit

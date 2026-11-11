@@ -8,7 +8,7 @@ enum PokoMain {
         let app = NSApplication.shared
         let delegate = AppDelegate()
         app.delegate = delegate
-        app.setActivationPolicy(.accessory)  // Dock に出さない
+        app.setActivationPolicy(.regular)  // Dock にも出す（窓は出さない）
         app.run()
     }
 }
@@ -18,8 +18,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var poko: Poko?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = Self.mainMenu()
         poko = Poko()
         poko?.launch()
+        // 窓がないので、起動したら隠して前のアプリに戻す（前に残ると、話した文の貼り先がなくなる）。
+        DispatchQueue.main.async { NSApp.hide(nil) }
+    }
+
+    /// Dock のアイコンを押したときは、メニューバーのメニューを開く。
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        poko?.openMenu()
+        return false
+    }
+
+    /// Poko が前に出ている間の、画面上端のメニュー（⌘Q と ⌘H が効くように）。
+    private static func mainMenu() -> NSMenu {
+        let app = NSMenu()
+        app.addItem(withTitle: "Poko を隠す", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
+        app.addItem(.separator())
+        app.addItem(withTitle: "Poko を終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let holder = NSMenuItem(title: "Poko", action: nil, keyEquivalent: "")
+        holder.submenu = app
+        let main = NSMenu()
+        main.addItem(holder)
+        return main
     }
 }
 
@@ -214,6 +236,11 @@ final class Poko {
         UserDefaults.standard.set(key.rawValue, forKey: Self.keySetting)
         hotKey.key = key
         menuBar.key = key
+    }
+
+    /// メニューバーのメニューを開く（Dock のアイコンを押したとき）。
+    func openMenu() {
+        menuBar.open()
     }
 
     private func copyLast() {

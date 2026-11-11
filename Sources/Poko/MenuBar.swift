@@ -25,6 +25,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
     private var timer: Timer?
     private let clock = Date()
     private var errorTimer: Timer?
+    private var hideOnClose = false
 
     init(actions: Actions) {
         self.actions = actions
@@ -92,6 +93,19 @@ final class MenuBar: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         refreshMenu()
+    }
+
+    /// メニューを開く（Dock のアイコンを押したとき）。
+    /// 閉じたら Poko を隠して、前のアプリに戻す。Poko が前に残ると、次に話した文の貼り先がなくなるため。
+    func open() {
+        hideOnClose = true
+        item.button?.performClick(nil)
+    }
+
+    func menuDidClose(_ menu: NSMenu) {
+        guard hideOnClose else { return }
+        hideOnClose = false
+        NSApp.hide(nil)
     }
 
     private func refreshMenu() {
