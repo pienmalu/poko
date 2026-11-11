@@ -49,7 +49,7 @@ final class Transcription: @unchecked Sendable {
     static let timeout: TimeInterval = 60
     /// 辞書をどれだけ強く効かせるか（speech.cpp の `--keywords-alpha`。speech.cpp の既定も 2）。
     /// 50 語ほどの辞書と普段の文を合成音声で試すと、3 では 15 文に 1 つほどが辞書の語に化け、
-    /// 2 では 200 文で化けなかった。辞書の語が正しく出る数は、2 と 3 でほぼ同じだった。
+    /// 2 では 100 文に 1 つほどだった。辞書の語が正しく出る数は、2 と 3 でほぼ同じだった。
     /// 数語だけの辞書では、2 だと取りこぼしが少しある。4 では辞書にない所まで辞書の語に変わった。
     static let keywordsAlpha = 2.0
 
