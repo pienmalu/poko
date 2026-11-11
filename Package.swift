@@ -3,11 +3,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "Koe",
+    name: "Poko",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "Koe", path: "Sources/Koe"),
-        .testTarget(name: "KoeTests", dependencies: ["Koe"], path: "Tests/KoeTests"),
+        .executableTarget(name: "Poko", path: "Sources/Poko"),
+        .testTarget(name: "PokoTests", dependencies: ["Poko"], path: "Tests/PokoTests"),
     ],
     swiftLanguageModes: [.v5]
 )

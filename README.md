@@ -1,7 +1,8 @@
-# Koe
+# Poko
 
 キーを押しながら話して離すと、いま使っているアプリのカーソル位置に文字が入る、日本語の音声入力。
 macOS 14 以降の Apple Silicon の Mac で動く。
+名前は、話すと文字が「ぽこっ」と出ることから。メモ帳の [Mogu](../thoughts) と対になる。
 認識には [speech.cpp](https://github.com/nyosegawa/speech.cpp) と Haas-ja-v1.0（Q8_0）を使い、Mac の中だけで行う。
 音声も文字も外には送らない。
 
@@ -15,7 +16,7 @@ macOS 14 以降の Apple Silicon の Mac で動く。
 ```
 
 1. 初回は「アクセシビリティ」と「マイク」の許可を求められるので、両方許可する。
-   アクセシビリティは システム設定 → プライバシーとセキュリティ → アクセシビリティ で Koe をオンにする。
+   アクセシビリティは システム設定 → プライバシーとセキュリティ → アクセシビリティ で Poko をオンにする。
 2. **右⌘ を押している間に話し、離す**。
    認識した文がカーソルの位置に貼り付けられる。
 3. キーは メニュー → キー で `fn` にも変えられる。
@@ -43,13 +44,13 @@ macOS 14 以降の Apple Silicon の Mac で動く。
 
 モデルは speech.cpp の既定のフォルダ `~/Library/Caches/speech.cpp/models` に置く。
 環境変数 `SPEECH_MODEL_DIR` があれば、そのフォルダに置く。
-Koe のほかに speech.cpp を使うアプリやコマンドも、同じモデルを取り直さずに使える。
+Poko のほかに speech.cpp を使うアプリやコマンドも、同じモデルを取り直さずに使える。
 
 ```bash
 speech asr haas-ja-v1.0 voice.wav   # ほかの場所から使う例
 ```
 
-Koe はリポジトリの `models/` に張ったリンクを通して、このファイルを読む。
+Poko はリポジトリの `models/` に張ったリンクを通して、このファイルを読む。
 リンクは `setup.sh` が張る。
 `~/Library/Caches` の中身が消えたときは、`setup.sh` を実行し直す。
 
@@ -58,10 +59,10 @@ Koe はリポジトリの `models/` に張ったリンクを通して、この�
 `build-app.sh` は簡易署名（ad-hoc）でアプリを作る。
 macOS はこの署名を「別のアプリ」とみなすので、**ビルドし直すとアクセシビリティの許可が効かなくなる**。
 システム設定の一覧ではオンのままでも、キーに反応しない。
-そのときは、次を実行してから Koe を起動し直し、もう一度許可する。
+そのときは、次を実行してから Poko を起動し直し、もう一度許可する。
 
 ```bash
-tccutil reset Accessibility dev.haruka.koe
+tccutil reset Accessibility dev.haruka.poko
 ```
 
 ビルドし直すたびにこれをするのが面倒なら、自己署名のコード署名用の証明書を1つ作り、その名前を渡してビルドする。
@@ -69,7 +70,7 @@ tccutil reset Accessibility dev.haruka.koe
 署名が変わらないので、許可は1回で済む。
 
 ```bash
-KOE_SIGN_IDENTITY="Koe Local" ./scripts/build-app.sh --open
+POKO_SIGN_IDENTITY="Poko Local" ./scripts/build-app.sh --open
 ```
 
 ## 仕組み
@@ -102,7 +103,7 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 
 | ファイル | 役割 |
 |---|---|
-| `KoeApp.swift` | 起動し、部品をつなぐ（キー → 録音 → 認識 → 貼り付け）。許可の確認 |
+| `PokoApp.swift` | 起動し、部品をつなぐ（キー → 録音 → 認識 → 貼り付け）。許可の確認 |
 | `PushToTalk.swift` | 押す、離す、ほかのキー、上限から、「録る、捨てる、認識する」を決める（副作用なし） |
 | `HotKey.swift` | 右⌘ と fn の押し離しを、どのアプリを使っていても受け取る |
 | `Recorder.swift` | マイクの音を 16 kHz、16 bit に変える。声の大きさも出す |
@@ -118,8 +119,8 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 | 値 | 場所 | 既定 |
 |---|---|---|
 | 押し間違いとみなす長さ | `PushToTalk.minimumHold` | 0.3 秒 |
-| 1 回に録れる長さ | `Koe.longest` | 180 秒 |
-| 離してから録り続ける長さ | `Koe.tail` | 0.2 秒 |
+| 1 回に録れる長さ | `Poko.longest` | 180 秒 |
+| 離してから録り続ける長さ | `Poko.tail` | 0.2 秒 |
 | クリップボードを戻すまで | `Paster.restoreDelay` | 0.5 秒 |
 | 区間のつなぎ方 | `Transcript.join` | 句読点がなければ「、」 |
 | VAD の閾値など | `Transcription` の `process.arguments` に `--threshold` `--min-silence-duration-ms` などを足す | speech.cpp の既定 |
@@ -128,23 +129,23 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 
 ```bash
 ./scripts/test.sh                       # 単体テスト（押し離しの判定、行のつなぎ方、アイコンの動き）
-KOE_HOME=$PWD KOE_TEST_WAV=voice.wav ./scripts/test.sh   # 本物の speech.cpp で認識するテストも走らせる（16 kHz、16 bit、モノラルの WAV）
-KOE_HOME=$PWD KOE_TEST_WAV=voice.wav KOE_TEST_AUDIO=voice48k.wav ./scripts/test.sh  # マイクの形式からの変換も確かめる
+POKO_HOME=$PWD POKO_TEST_WAV=voice.wav ./scripts/test.sh   # 本物の speech.cpp で認識するテストも走らせる（16 kHz、16 bit、モノラルの WAV）
+POKO_HOME=$PWD POKO_TEST_WAV=voice.wav POKO_TEST_AUDIO=voice48k.wav ./scripts/test.sh  # マイクの形式からの変換も確かめる
 ./tools/render-icon.sh                  # アイコンの全状態をコマ送りで build/icon-frames.png に描く（明暗、1x と 2x）
-./tools/render-app-icon.sh              # アプリのアイコン Resources/Koe.icns を、正方形の絵 Resources/AppIcon.png から作り直す
+./tools/render-app-icon.sh              # アプリのアイコン Resources/Poko.icns を、正方形の絵 Resources/AppIcon.png から作り直す
 ```
 
 - ビルドは SwiftPM を使わず、`swiftc` で直接行う。`Package.swift` は Xcode で開くためのもの。
-- アプリはビルドしたフォルダ（`Info.plist` の `KoeHome`）の `vendor/speech` と `models/` を使う。
+- アプリはビルドしたフォルダ（`Info.plist` の `PokoHome`）の `vendor/speech` と `models/` を使う。
   フォルダを動かしたら、ビルドし直す。
-  `KOE_HOME=<フォルダ>` を付けて起動すると、別の場所を使える。
+  `POKO_HOME=<フォルダ>` を付けて起動すると、別の場所を使える。
 - speech.cpp を上げるときは、`scripts/setup.sh` の `VERSION` を変えて実行し直す。
 
 ## ライセンス
 
-Koe は MIT License で公開している（[LICENSE](LICENSE)）。
+Poko は MIT License で公開している（[LICENSE](LICENSE)）。
 
-`setup.sh` が取ってくるものは Koe に含まれず、それぞれのライセンスに従う。
+`setup.sh` が取ってくるものは Poko に含まれず、それぞれのライセンスに従う。
 
 | もの | ライセンス |
 |---|---|

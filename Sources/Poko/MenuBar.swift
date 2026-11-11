@@ -32,7 +32,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
         menu.delegate = self
         menu.autoenablesItems = false  // 「最後の結果をコピー」の有効・無効を自分で決める
         item.menu = menu
-        item.button?.setAccessibilityLabel("Koe")
+        item.button?.setAccessibilityLabel("Poko")
         show(.idle)
         refreshMenu()
     }
@@ -122,7 +122,7 @@ final class MenuBar: NSObject, NSMenuDelegate {
         menu.addItem(copy)
 
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Koe を終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Poko を終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
     }
 
     private func disabled(_ title: String) -> NSMenuItem {

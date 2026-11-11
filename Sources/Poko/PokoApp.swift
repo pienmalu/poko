@@ -1,8 +1,8 @@
 import AppKit
 
-/// Koe: キーを押しながら話すと、離したときにカーソル位置へ文字が入る。音声は Mac の外に出ない。
+/// Poko: キーを押しながら話すと、離したときにカーソル位置へ文字が入る。音声は Mac の外に出ない。
 @main
-enum KoeMain {
+enum PokoMain {
     static func main() {
         signal(SIGPIPE, SIG_IGN)  // speech が先に終わっても、書き込み側のこのアプリは落ちないように
         let app = NSApplication.shared
@@ -15,17 +15,17 @@ enum KoeMain {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private var koe: Koe?
+    private var poko: Poko?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        koe = Koe()
-        koe?.launch()
+        poko = Poko()
+        poko?.launch()
     }
 }
 
 /// 部品をつなぐ。キー → 録音 → 認識 → 貼り付け。
 @MainActor
-final class Koe {
+final class Poko {
     /// 1回に録れる長さ。達したら、離すのを待たずに認識する。
     static let longest: TimeInterval = 180
     /// 離してから録り続ける長さ。

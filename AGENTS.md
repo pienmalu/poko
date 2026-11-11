@@ -1,4 +1,4 @@
-# Koe
+# Poko
 
 押しながら話す音声入力（メニューバー常駐、macOS 14+、Apple Silicon）。使い方と構成は README.md。
 

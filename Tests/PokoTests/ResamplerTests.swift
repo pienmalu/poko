@@ -27,11 +27,11 @@ final class ResamplerTests: XCTestCase {
     }
 
     /// 本物の音声を、マイクと同じ形式・刻みで変換して認識させ、16 kHz の WAV を直接渡したときと同じ文になるか。
-    /// KOE_TEST_AUDIO に 48 kHz などの音声ファイル、KOE_TEST_WAV に同じ音声の 16 kHz WAV を渡したときだけ走る。
+    /// POKO_TEST_AUDIO に 48 kHz などの音声ファイル、POKO_TEST_WAV に同じ音声の 16 kHz WAV を渡したときだけ走る。
     func testConvertedAudioIsRecognizedLikeTheOriginal() async throws {
         let env = ProcessInfo.processInfo.environment
-        guard let audio = env["KOE_TEST_AUDIO"], let wav = env["KOE_TEST_WAV"] else {
-            throw XCTSkip("KOE_TEST_AUDIO と KOE_TEST_WAV がないので飛ばす")
+        guard let audio = env["POKO_TEST_AUDIO"], let wav = env["POKO_TEST_WAV"] else {
+            throw XCTSkip("POKO_TEST_AUDIO と POKO_TEST_WAV がないので飛ばす")
         }
         let file = try AVAudioFile(forReading: URL(fileURLWithPath: audio))
         let resampler = try XCTUnwrap(Resampler(from: file.processingFormat))

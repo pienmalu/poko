@@ -5,6 +5,6 @@ cd "$(dirname "$0")/.."
 TMP="${TMPDIR:-/tmp}"
 OUT="${1:-build/icon-frames.png}"
 mkdir -p build
-swiftc -swift-version 5 -target arm64-apple-macosx14.0 -module-cache-path "$TMP/koe-module-cache" \
-  Sources/Koe/StatusIcon.swift tools/render-icon/main.swift -o build/render-icon
+swiftc -swift-version 5 -target arm64-apple-macosx14.0 -module-cache-path "$TMP/poko-module-cache" \
+  Sources/Poko/StatusIcon.swift tools/render-icon/main.swift -o build/render-icon
 build/render-icon "$OUT"

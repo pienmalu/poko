@@ -1,11 +1,11 @@
 import XCTest
 
-/// 本物の speech.cpp を動かすテスト。KOE_TEST_WAV に 16 kHz・16 bit・モノラルの WAV を渡したときだけ走る。
-/// 例: KOE_HOME=$PWD KOE_TEST_WAV=voice.wav ./scripts/test.sh
+/// 本物の speech.cpp を動かすテスト。POKO_TEST_WAV に 16 kHz・16 bit・モノラルの WAV を渡したときだけ走る。
+/// 例: POKO_HOME=$PWD POKO_TEST_WAV=voice.wav ./scripts/test.sh
 final class TranscriptionTests: XCTestCase {
     func testStreamsAudioAndReturnsText() async throws {
-        guard let path = ProcessInfo.processInfo.environment["KOE_TEST_WAV"] else {
-            throw XCTSkip("KOE_TEST_WAV がないので飛ばす")
+        guard let path = ProcessInfo.processInfo.environment["POKO_TEST_WAV"] else {
+            throw XCTSkip("POKO_TEST_WAV がないので飛ばす")
         }
         let pcm = try Self.samples(ofWAV: URL(fileURLWithPath: path))
         let session = try Transcription(files: .locate())
@@ -24,8 +24,8 @@ final class TranscriptionTests: XCTestCase {
     }
 
     func testCancelStopsTheProcess() throws {
-        guard ProcessInfo.processInfo.environment["KOE_TEST_WAV"] != nil else {
-            throw XCTSkip("KOE_TEST_WAV がないので飛ばす")
+        guard ProcessInfo.processInfo.environment["POKO_TEST_WAV"] != nil else {
+            throw XCTSkip("POKO_TEST_WAV がないので飛ばす")
         }
         let session = try Transcription(files: .locate())
         session.feed(Data(count: 3200))

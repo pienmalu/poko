@@ -1,14 +1,14 @@
 import Foundation
 
-/// アプリが使うファイルの場所。Info.plist の `KoeHome`（ビルドしたフォルダ）か、環境変数 `KOE_HOME` から決める。
+/// アプリが使うファイルの場所。Info.plist の `PokoHome`（ビルドしたフォルダ）か、環境変数 `POKO_HOME` から決める。
 struct EngineFiles {
     let speech: URL
     let model: URL
     let vad: URL
 
     static func locate() -> EngineFiles {
-        let home = ProcessInfo.processInfo.environment["KOE_HOME"]
-            ?? Bundle.main.object(forInfoDictionaryKey: "KoeHome") as? String
+        let home = ProcessInfo.processInfo.environment["POKO_HOME"]
+            ?? Bundle.main.object(forInfoDictionaryKey: "PokoHome") as? String
             ?? FileManager.default.currentDirectoryPath
         let root = URL(fileURLWithPath: home)
         return EngineFiles(
@@ -45,7 +45,7 @@ final class Transcription: @unchecked Sendable {
 
     private let process = Process()
     private let input = Pipe()
-    private let writer = DispatchQueue(label: "koe.transcription.writer")
+    private let writer = DispatchQueue(label: "poko.transcription.writer")
     private var writeFailed = false
     private let output: Task<Data, Never>
     private let errors: Task<Data, Never>
@@ -128,7 +128,7 @@ final class Transcription: @unchecked Sendable {
     /// 最初に話す前に済ませておく。無音を VAD 付きで渡すと区間が見つからず、Haas が動かないため、こうする。
     static func warmUp(files: EngineFiles) async throws {
         if let missing = files.missing() { throw Failure(message: missing) }
-        let wav = FileManager.default.temporaryDirectory.appendingPathComponent("koe-warmup.wav")
+        let wav = FileManager.default.temporaryDirectory.appendingPathComponent("poko-warmup.wav")
         var generator = SystemRandomNumberGenerator()
         let samples = (0..<sampleRate / 2).map { _ in Int16.random(in: -64...64, using: &generator) }
         try Self.wav(samples).write(to: wav)
