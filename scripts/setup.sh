@@ -1,6 +1,8 @@
 #!/bin/zsh
-# speech.cpp とモデルを取ってくる（最初に1回だけ）。使い方: ./scripts/setup.sh
-# ここだけがネットにつながる。アプリは取ってきたファイルを読むだけで、外には何も送らない。
+# speech.cpp とモデルを取ってくる（最初に1回だけ）。使い方: ./scripts/setup.sh [--llm]
+#   --llm  推敲を Mac の中でするための llama.cpp と Gemma 4 E4B（約 5 GB）も取ってくる
+# ここだけがネットにつながる。アプリは取ってきたファイルを読むだけ（推敲に Claude か ChatGPT を選んだときは、
+# その CLI が文字を送る）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
@@ -26,5 +28,31 @@ vendor/speech --version
 mkdir -p models
 ln -sf "$(vendor/speech pull haas-ja-v1.0:q8_0)" models/haas-ja-v1.0-q8_0.gguf
 ln -sf "$(vendor/speech pull silero-vad)" models/silero-vad.gguf
+
+# 4. --llm のときだけ、推敲に使う llama.cpp と Gemma 4 E4B を取ってくる。
+#    Gemma は Mogu などとも共有するフォルダ（LLAMA_MODEL_DIR、既定は ~/models/llama.cpp）に置き、リンクを張る。
+if (( ${@[(Ie)--llm]} )); then
+  LLAMA_TAG="b12110"   # Gemma 4 が動くことを確かめた版
+  if [[ ! -x "vendor/llama-$LLAMA_TAG/llama-server" ]]; then
+    echo "llama.cpp $LLAMA_TAG を取ってきます"
+    curl -fL --progress-bar -o vendor/llama.tgz \
+      "https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG/llama-$LLAMA_TAG-bin-macos-arm64.tar.gz"
+    tar xzf vendor/llama.tgz -C vendor
+    rm vendor/llama.tgz
+    xattr -dr com.apple.quarantine "vendor/llama-$LLAMA_TAG" 2>/dev/null || true
+  fi
+  ln -sfn "llama-$LLAMA_TAG" vendor/llama
+
+  SHARED="${LLAMA_MODEL_DIR:-$HOME/models/llama.cpp}"
+  GEMMA="gemma-4-E4B-it-Q4_K_M.gguf"
+  mkdir -p "$SHARED"
+  if [[ ! -f "$SHARED/$GEMMA" ]]; then
+    echo "$GEMMA を取ってきます"
+    curl -fL --progress-bar -o "$SHARED/$GEMMA.part" "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/$GEMMA"
+    mv "$SHARED/$GEMMA.part" "$SHARED/$GEMMA"
+  fi
+  ln -sf "$SHARED/$GEMMA" "models/$GEMMA"
+fi
+
 ls -l models/*.gguf
 echo "準備できました。次は ./scripts/build-app.sh --open"

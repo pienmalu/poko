@@ -49,7 +49,9 @@ final class TranscriptionTests: XCTestCase {
         let files = EngineFiles(
             speech: URL(fileURLWithPath: "/nonexistent/speech"),
             model: URL(fileURLWithPath: "/nonexistent/model.gguf"),
-            vad: URL(fileURLWithPath: "/nonexistent/vad.gguf")
+            vad: URL(fileURLWithPath: "/nonexistent/vad.gguf"),
+            llamaServer: URL(fileURLWithPath: "/nonexistent/llama-server"),
+            gemma: URL(fileURLWithPath: "/nonexistent/gemma.gguf")
         )
         XCTAssertThrowsError(try Transcription(files: files)) { error in
             XCTAssertTrue(error.localizedDescription.contains("setup.sh"))

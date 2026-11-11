@@ -5,7 +5,10 @@ macOS 14 以降の Apple Silicon の Mac で動く。
 名前は、話すと文字が「ぽこっ」と出ることから付けた。
 メモ帳の [Mogu](https://github.com/pienmalu/mogu/tree/personal) と対になる。
 認識には [speech.cpp](https://github.com/nyosegawa/speech.cpp) と Haas-ja-v1.0（Q8_0）を使い、Mac の中だけで行う。
-音声も文字も外には送らない。
+音声は外に送らない。
+認識した文から「えー」「あの」などを消す推敲もできる（既定はしない）。
+推敲は Mac の中の Gemma 4 でも、Claude や ChatGPT のサブスクでもできる。
+文字を外に送るのは、サブスクを選んだときだけだ。
 
 アプリは Dock とメニューバーに出る。
 窓は出さない。
@@ -14,6 +17,7 @@ macOS 14 以降の Apple Silicon の Mac で動く。
 
 ```bash
 ./scripts/setup.sh                        # 最初に1回。speech.cpp 0.10.1 と、モデル（0.66 GB）を取ってくる
+./scripts/setup.sh --llm                  # 推敲を Mac の中でするときだけ。llama.cpp と Gemma 4 E4B（約 5 GB）も取ってくる
 ./scripts/build-app.sh --install --open   # アプリを作って ~/Applications に入れ、開く
 ```
 
@@ -37,6 +41,35 @@ Dock に置くには、開いている間に Dock のアイコンを右クリッ
 - 文字を入れられる場所がなかったときなど、貼れなかったときは、メニュー → 最後の結果をコピー で取り出せる。
 - Dock のアイコンを押すと、メニューバーと同じメニューが開く。
   Poko は起動したときと、このメニューを閉じたときに隠れて、前に使っていたアプリに戻る（前に残ると、話した文の貼り先がなくなるため）。
+
+## 推敲（フィラーを消す）
+
+メニュー → 推敲 で、認識した文を貼る前に整えさせられる。
+「えー」「あの」「えっと」などのフィラーと言い直しを消し、句読点を整える。
+言いたいことと文体は変えない。
+
+| 選ぶもの | どこで | 離してから貼るまで（M4 で測った値） | 要るもの |
+|---|---|---|---|
+| しない（既定） | ― | 0.1 秒ほど | ― |
+| Mac の中の Gemma 4 | Mac の中。文字は外に出ない | 1 秒ほど | `./scripts/setup.sh --llm` |
+| Claude | Anthropic に文字を送る | 3〜5 秒 | Claude Code（`claude`）に、サブスクでログインしておく |
+| ChatGPT | OpenAI に文字を送る | 4〜5 秒 | Codex（`codex`）に `codex login` で、ChatGPT でログインしておく |
+
+- Gemma は常には動かさない。キーを押して 0.3 秒経ったら読み込み始め（1〜4 秒）、話している間に用意する。
+  2 分使わなければ止めて、メモリ（約 5 GB）を返す。
+  そのため、しばらく使っていないときに 2 秒より短く話すと、読み込みを待つ分だけ遅れる。
+  Mac で初めて動かすときは、Metal の準備で十数秒かかる。
+- Claude と ChatGPT は、ログイン済みの公式 CLI（`claude -p`、`codex exec`）を1回ごとに起動して頼む。
+  Poko は API キーもトークンも持たない。
+  CLI の場所は、ターミナルと同じものを使うよう、起動したときにログインシェルに尋ねる。
+  違うものを使わせたいときは `defaults write dev.haruka.poko codexPath /path/to/codex`（`claudePath` も同じ）。
+  使うモデルは `LLM.swift` の `SubscriptionLLM` にある（Claude は Sonnet、ChatGPT は gpt-6-luna の推論なし）。
+- このように CLI を自分のアプリから呼ぶ使い方が、各社のサブスクの規約で認められているかは確かめていない。
+- 推敲が終わって貼るまでは、次の録音を始めない（貼る順番が入れ替わらないように）。
+  その間にほかの場所をクリックすると、クリックした先に貼られる。
+- 推敲が失敗したとき、時間内に終わらなかったとき（Gemma は 30 秒、サブスクは 10 秒）、答えが変なとき
+  （元の文よりずっと長い、など。中身の質問に答えてしまったとみなす）は、元の文を貼り、理由をメニューの1行目に出す。
+- 推敲する前の文は、メニュー → 推敲する前の文をコピー で取り出せる。
 
 ## メニューバーのアイコン
 
@@ -105,8 +138,11 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 初めての Mac や OS の更新後は、この準備に十数秒かかる。
 
 モデルはファイルの場所で渡すので、speech.cpp がネットからモデルを取りに行くことはない。
-ネットにつながるのは `setup.sh` だけだ。
+Poko 自身がネットにつながるのは `setup.sh` だけだ（推敲に Claude か ChatGPT を選んだときは、その CLI がつながる）。
 ネットワークを `sandbox-exec` で塞いだ中でも、アプリと同じ呼び方で認識できることを確かめてある。
+
+推敲を選んでいると、行をつないだ文を貼る前に推敲に回す（`Polish.swift`）。
+Gemma は `llama-server` を `127.0.0.1` だけで待ち受けさせて頼む。
 
 ## 構成
 
@@ -118,6 +154,8 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 | `Recorder.swift` | マイクの音を 16 kHz、16 bit に変える。声の大きさも出す |
 | `Transcription.swift` | 1 回の録音につき `speech asr` を1つ動かし、音を流して結果を受け取る |
 | `Transcript.swift` | 区間ごとの行を1つの文にまとめる |
+| `Polish.swift` | 推敲の選択、頼み方、返ってきた文の確かめ方。失敗したら元の文を返す |
+| `LLM.swift` | 文字の LLM を呼ぶ口（Gemma の llama-server を必要なときだけ起動する部分と、claude・codex の CLI）。ほかのアプリからも使えるよう、単独で動く |
 | `Paster.swift` | クリップボードを借りて ⌘V を送り、元に戻す |
 | `StatusIcon.swift` | メニューバーのアイコン（ばねで動く5本のバー）の動きと描画 |
 | `MenuBar.swift` | メニューバーの項目とメニュー |
@@ -132,6 +170,9 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 | 離してから録り続ける長さ | `Poko.tail` | 0.2 秒 |
 | クリップボードを戻すまで | `Paster.restoreDelay` | 0.5 秒 |
 | 区間のつなぎ方 | `Transcript.join` | 句読点がなければ「、」 |
+| Gemma を止めるまで | `LocalLLM.idleLimit` | 2 分 |
+| 推敲を待つ上限 | `Polisher.localTimeout` / `subscriptionTimeout` | 30 秒 / 10 秒 |
+| 推敲の指示 | `PolishPrompt.system` | フィラーと言い直しを消し、句読点を整える |
 | VAD の閾値など | `Transcription` の `process.arguments` に `--threshold` `--min-silence-duration-ms` などを足す | speech.cpp の既定 |
 
 ## 開発
@@ -140,6 +181,7 @@ Haas（FastConformer）は、複数の文を一度に渡すと文がまるごと
 ./scripts/test.sh                       # 単体テスト（押し離しの判定、行のつなぎ方、アイコンの動き）
 POKO_HOME=$PWD POKO_TEST_WAV=voice.wav ./scripts/test.sh   # 本物の speech.cpp で認識するテストも走らせる（16 kHz、16 bit、モノラルの WAV）
 POKO_HOME=$PWD POKO_TEST_WAV=voice.wav POKO_TEST_AUDIO=voice48k.wav ./scripts/test.sh  # マイクの形式からの変換も確かめる
+POKO_HOME=$PWD POKO_TEST_LLM=local,claude,chatgpt ./scripts/test.sh   # 本物の LLM で推敲する（claude と chatgpt は文字を送る）
 ./tools/render-icon.sh                  # メニューバーのアイコンの全状態をコマ送りで build/icon-frames.png に描く（明暗、1x と 2x）
 ./tools/render-app-icon.sh              # アプリのアイコン Resources/AppIcon.icns を、正方形の絵 Resources/AppIcon.png から作り直す
 ```
@@ -162,3 +204,5 @@ Poko は MIT License で公開している（[LICENSE](LICENSE)）。
 | [speech.cpp](https://github.com/nyosegawa/speech.cpp) | MIT |
 | [Haas-ja-v1.0](https://huggingface.co/sakasegawa/Haas-ja-v1.0-GGUF) | Apache-2.0 |
 | [Silero VAD](https://huggingface.co/sakasegawa/silero-vad-GGUF) | MIT |
+| [llama.cpp](https://github.com/ggml-org/llama.cpp)（`--llm` のとき） | MIT |
+| [Gemma 4 E4B](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF)（`--llm` のとき） | Apache-2.0 |

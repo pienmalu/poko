@@ -1,6 +1,7 @@
 import AppKit
 
-/// Poko: キーを押しながら話すと、離したときにカーソル位置へ文字が入る。音声は Mac の外に出ない。
+/// Poko: キーを押しながら話すと、離したときにカーソル位置へ文字が入る。
+/// 音声は Mac の外に出さない。文字を外に送るのは、推敲に Claude か ChatGPT を選んだときだけ。
 @main
 enum PokoMain {
     static func main() {
@@ -23,6 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         poko?.launch()
         // 窓がないので、起動したら隠して前のアプリに戻す（前に残ると、話した文の貼り先がなくなる）。
         DispatchQueue.main.async { NSApp.hide(nil) }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        poko?.shutDown()  // 推敲の llama-server を残さない
     }
 
     /// Dock のアイコンを押したときは、メニューバーのメニューを開く。
@@ -59,6 +64,8 @@ final class Poko {
     private var session: Transcription?
     private var limit: Timer?
     private var permissionWatch: Timer?
+    private var warmTimer: Timer?
+    private lazy var polisher = Polisher(files: files)
     private var menuBar: MenuBar!
     private var hotKey: HotKey!
 
@@ -69,10 +76,13 @@ final class Poko {
         menuBar = MenuBar(actions: .init(
             chooseKey: { [weak self] in self?.choose($0) },
             copyLast: { [weak self] in self?.copyLast() },
+            copyRaw: { [weak self] in self?.copyRaw() },
+            choosePolish: { [weak self] in self?.choose($0) },
             allowAccessibility: { Permissions.askForAccessibility(); Permissions.openAccessibilitySettings() },
             allowMicrophone: { Permissions.openMicrophoneSettings() }
         ))
         menuBar.key = key
+        menuBar.polish = PolishMode.current
         hotKey = HotKey(key: key) { [weak self] in self?.handle($0) }
         hotKey.start()
 
@@ -87,6 +97,10 @@ final class Poko {
         }
         refreshReadiness()
         warmUp()
+        // サブスクの CLI の場所を、使う前に裏で調べておく（ログインシェルに尋ねるので 0.5 秒ほどかかる）。
+        if let provider = PolishMode.current.provider, provider.sendsOut {
+            DispatchQueue.global().async { _ = SubscriptionLLM.locate(provider) }
+        }
     }
 
     // MARK: 押す・離す
@@ -126,6 +140,14 @@ final class Poko {
         limit = Timer.scheduledTimer(withTimeInterval: Self.longest, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.handle(.timeLimit) }
         }
+        // 押し間違い（すぐ離す、右⌘+C など）でなさそうになってから、推敲の Gemma を読み込み始める。
+        // 押すたびに 5 GB を読まないように。読み込みは話している間に済む。
+        warmTimer = Timer.scheduledTimer(withTimeInterval: PushToTalk.minimumHold, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, case .recording = self.flow.state else { return }
+                self.polisher.prepare()
+            }
+        }
     }
 
     private func cancel() {
@@ -152,7 +174,14 @@ final class Poko {
             try? await Task.sleep(for: .seconds(Self.tail))
             stopRecording()
             do {
-                let text = try await session.finish()
+                let raw = try await session.finish()
+                // 推敲が終わって貼るまでは次を録らない（貼る順番が入れ替わらないように）。
+                var text = raw
+                var note: String?
+                if !raw.isEmpty, polisher.mode != .off {
+                    menuBar.status = "整えています…"
+                    (text, note) = await polisher.polish(raw)
+                }
                 _ = flow.handle(.finished)
                 if text.isEmpty {
                     menuBar.status = "聞き取れませんでした"
@@ -160,7 +189,8 @@ final class Poko {
                 } else {
                     Paster.paste(text)
                     menuBar.lastText = text
-                    menuBar.status = ""
+                    menuBar.lastRaw = raw
+                    menuBar.status = note ?? ""
                     menuBar.settle(pop: true)
                 }
             } catch {
@@ -173,6 +203,8 @@ final class Poko {
     private func stopRecording() {
         limit?.invalidate()
         limit = nil
+        warmTimer?.invalidate()
+        warmTimer = nil
         recorder.stop()
         recorder.onAudio = nil
     }
@@ -243,8 +275,31 @@ final class Poko {
         menuBar.open()
     }
 
+    private func choose(_ mode: PolishMode) {
+        PolishMode.current = mode
+        menuBar.polish = mode
+        if mode != .local { polisher.stop() }
+        if let problem = polisher.problem() {
+            fail(problem)
+        } else if menuBar.status.hasPrefix("推敲") {
+            menuBar.status = ""
+        }
+    }
+
+    func shutDown() {
+        polisher.stop()
+    }
+
     private func copyLast() {
-        guard let text = menuBar.lastText else { return }
+        copy(menuBar.lastText)
+    }
+
+    private func copyRaw() {
+        copy(menuBar.lastRaw)
+    }
+
+    private func copy(_ text: String?) {
+        guard let text else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
     }

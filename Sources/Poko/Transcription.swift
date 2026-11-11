@@ -5,6 +5,9 @@ struct EngineFiles {
     let speech: URL
     let model: URL
     let vad: URL
+    /// 推敲に使う llama.cpp と Gemma 4。`setup.sh --llm` で取ってくる。なくても認識はできる。
+    let llamaServer: URL
+    let gemma: URL
 
     static func locate() -> EngineFiles {
         let home = ProcessInfo.processInfo.environment["POKO_HOME"]
@@ -14,11 +17,13 @@ struct EngineFiles {
         return EngineFiles(
             speech: root.appendingPathComponent("vendor/speech"),
             model: root.appendingPathComponent("models/haas-ja-v1.0-q8_0.gguf"),
-            vad: root.appendingPathComponent("models/silero-vad.gguf")
+            vad: root.appendingPathComponent("models/silero-vad.gguf"),
+            llamaServer: root.appendingPathComponent("vendor/llama/llama-server"),
+            gemma: root.appendingPathComponent("models/gemma-4-E4B-it-Q4_K_M.gguf")
         )
     }
 
-    /// 足りないファイルがあれば、その説明を返す。
+    /// 認識に要るファイルで足りないものがあれば、その説明を返す（推敲のものは含めない）。
     func missing() -> String? {
         for url in [speech, model, vad] where !FileManager.default.fileExists(atPath: url.path) {
             return "\(url.lastPathComponent) がありません。scripts/setup.sh を実行してください"

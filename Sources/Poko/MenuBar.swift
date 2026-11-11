@@ -6,6 +6,8 @@ final class MenuBar: NSObject, NSMenuDelegate {
     struct Actions {
         var chooseKey: (TriggerKey) -> Void
         var copyLast: () -> Void
+        var copyRaw: () -> Void
+        var choosePolish: (PolishMode) -> Void
         var allowAccessibility: () -> Void
         var allowMicrophone: () -> Void
     }
@@ -15,6 +17,9 @@ final class MenuBar: NSObject, NSMenuDelegate {
     var status = "" { didSet { if status != oldValue { refreshMenu() } } }
     var key: TriggerKey = .rightCommand { didSet { if key != oldValue { refreshMenu() } } }
     var lastText: String? { didSet { if lastText != oldValue { refreshMenu() } } }
+    /// 推敲する前の文。
+    var lastRaw: String? { didSet { if lastRaw != oldValue { refreshMenu() } } }
+    var polish: PolishMode = .off { didSet { if polish != oldValue { refreshMenu() } } }
     var needsAccessibility = false { didSet { if needsAccessibility != oldValue { refreshMenu() } } }
     var needsMicrophone = false { didSet { if needsMicrophone != oldValue { refreshMenu() } } }
 
@@ -130,10 +135,25 @@ final class MenuBar: NSObject, NSMenuDelegate {
         keysItem.submenu = keys
         menu.addItem(keysItem)
 
+        let polishes = NSMenu()
+        for choice in PolishMode.allCases {
+            let entry = button(choice.label) { [actions] in actions.choosePolish(choice) }
+            entry.state = choice == polish ? .on : .off
+            polishes.addItem(entry)
+        }
+        let polishItem = NSMenuItem(title: "推敲（フィラーを消す）", action: nil, keyEquivalent: "")
+        polishItem.submenu = polishes
+        menu.addItem(polishItem)
+
         let copy = button("最後の結果をコピー") { [actions] in actions.copyLast() }
         copy.isEnabled = lastText != nil
         if let lastText { copy.toolTip = lastText }
         menu.addItem(copy)
+        if let lastRaw, lastRaw != lastText {
+            let raw = button("推敲する前の文をコピー") { [actions] in actions.copyRaw() }
+            raw.toolTip = lastRaw
+            menu.addItem(raw)
+        }
 
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Poko を終了", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
