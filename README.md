@@ -111,6 +111,7 @@ Poko の辞書はこれに渡す。
   Mac で初めて動かすときは、Metal の準備で十数秒かかる。
 - Claude と ChatGPT はログイン済みの公式 CLI（`claude -p`、`codex exec`）を1回ごとに起動して頼む。
   Poko は API キーもトークンも持たない。
+  環境変数に API キー（`ANTHROPIC_API_KEY`、`OPENAI_API_KEY` など）があっても、CLI には渡さない（気づかずに従量課金で動かないように）。
   CLI の場所は、ターミナルと同じものを使うよう、起動したときにログインシェルに尋ねる。
   違うものを使わせたいときは `defaults write dev.haruka.poko codexPath /path/to/codex`（`claudePath` も同じ）。
   使うモデルは `LLM.swift` の `SubscriptionLLM` にある（Claude は Sonnet、ChatGPT は gpt-6-luna の推論なし）。

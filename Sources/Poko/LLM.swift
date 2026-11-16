@@ -258,10 +258,34 @@ final class LocalLLM {
 /// Claude Code と Codex の CLI を、1回ごとに起動して使う。
 /// どちらも先にターミナルでログインしておく（`claude` を一度開く、`codex login`）。
 enum SubscriptionLLM {
-    /// 使うモデル。変えたいときはここを直す。
+    /// 使うモデル。変えたいときはここを直す（呼ぶ側が model を渡せば、そちらを使う）。
     static let claudeModel = "sonnet"
     static let codexModel = "gpt-6-luna"
     static let codexEffort = "none"
+
+    /// CLI に渡さない環境変数。これらがあると、CLI はサブスクのログインではなく、API キー（従量課金）や別のクラウドで動く。
+    /// Dock から開いたアプリには、ふつうは入っていない。ターミナルから起動したときなどに、気づかずに課金されないように外す。
+    static let apiKeyVariables = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX",
+                                  "CLAUDE_CODE_USE_FOUNDRY", "OPENAI_API_KEY", "CODEX_API_KEY"]
+
+    /// CLI が動き始めたときに名乗る、実際に使うモデルと、API キーの出どころ（claude だけ）。
+    /// apiKeySource が "none" なら、API キーを使っていない（サブスクのログインで動いている）。
+    struct Session: Equatable, Sendable {
+        var model: String
+        var apiKeySource: String
+    }
+
+    /// CLI に渡す環境変数。API キーを外し、PATH を CLI の動く形にする。純粋な関数にしてテストする。
+    static func environment(from base: [String: String], executable: URL) -> [String: String] {
+        var environment = base
+        for name in apiKeyVariables { environment[name] = nil }
+        // codex は node で動くので、node のあるフォルダ（codex と同じフォルダ）を PATH に入れる。
+        let folder = executable.resolvingSymlinksInPath().deletingLastPathComponent().path
+        let linked = executable.deletingLastPathComponent().path
+        environment["PATH"] = [linked, folder, "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+            .joined(separator: ":")
+        return environment
+    }
 
     /// CLI の場所。`defaults write <アプリの ID> claudePath /path/to/claude` のように書けば、そちらを使う。
     /// Dock から開いたアプリにはシェルの PATH が渡らないので、ターミナルと同じものを使うよう、
@@ -321,7 +345,12 @@ enum SubscriptionLLM {
 
     /// CLI に渡す引数。純粋な関数にしてテストする。
     /// `stream` が true なら、claude は書いた分だけ JSON の行で返す（codex は最後にまとめて返すだけ）。
-    static func arguments(for provider: LLMProvider, system: String, user: String, stream: Bool = false) -> [String] {
+    /// `model` が nil か空なら、claudeModel・codexModel を使う。
+    static func arguments(for provider: LLMProvider, system: String, user: String, stream: Bool = false,
+                          model: String? = nil) -> [String] {
+        let custom = model?.trimmingCharacters(in: .whitespaces) ?? ""
+        let claudeModel = custom.isEmpty ? Self.claudeModel : custom
+        let codexModel = custom.isEmpty ? Self.codexModel : custom
         switch provider {
         case .claude:
             // ツール、設定、MCP、スキル、会話の保存を使わず、答えるだけにする。
@@ -342,9 +371,11 @@ enum SubscriptionLLM {
 
     /// 1回だけ頼んで、答えを全部返す。`timeout` 秒で打ち切る。呼んだ Task を取り消すと、CLI も止める。
     /// onPartial を渡すと、それまでに書かれた全文を少しずつ渡す（claude だけ。codex は最後に1回）。どのスレッドから呼ぶかは決まっていない。
-    static func complete(_ provider: LLMProvider, system: String, user: String, timeout: TimeInterval,
+    /// onSession を渡すと、CLI が動き始めたときに、実際に使うモデルと API キーの出どころを渡す（claude だけ）。
+    static func complete(_ provider: LLMProvider, system: String, user: String, timeout: TimeInterval, model: String? = nil,
+                         onSession: (@Sendable (Session) -> Void)? = nil,
                          onPartial: (@Sendable (String) -> Void)? = nil) async throws -> String {
-        let streaming = onPartial != nil && provider == .claude
+        let streaming = (onPartial != nil || onSession != nil) && provider == .claude
         let name = provider == .claude ? "Claude Code（claude）" : "Codex（codex）"
         guard let executable = locate(provider) else {
             throw LLMFailure(message: "\(name) が見つかりません")
@@ -356,15 +387,9 @@ enum SubscriptionLLM {
 
         let process = Process()
         process.executableURL = executable
-        process.arguments = arguments(for: provider, system: system, user: user, stream: streaming)
+        process.arguments = arguments(for: provider, system: system, user: user, stream: streaming, model: model)
         process.currentDirectoryURL = workdir
-        var environment = ProcessInfo.processInfo.environment
-        // codex は node で動くので、node のあるフォルダ（codex と同じフォルダ）を PATH に入れる。
-        let folder = executable.resolvingSymlinksInPath().deletingLastPathComponent().path
-        let linked = executable.deletingLastPathComponent().path
-        environment["PATH"] = [linked, folder, "/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
-            .joined(separator: ":")
-        process.environment = environment
+        process.environment = environment(from: ProcessInfo.processInfo.environment, executable: executable)
         let output = Pipe()
         let errors = Pipe()
         process.standardInput = FileHandle.nullDevice
@@ -382,8 +407,11 @@ enum SubscriptionLLM {
         let parser = StreamParser()
         let (out, err) = await withTaskCancellationHandler {
             async let text = readAll(output.fileHandleForReading) { line in
-                guard streaming, let partial = parser.feed(line) else { return }
-                onPartial?(partial)
+                guard streaming else { return }
+                let known = parser.session != nil
+                let partial = parser.feed(line)
+                if !known, let session = parser.session { onSession?(session) }
+                if let partial { onPartial?(partial) }
             }
             async let log = readAll(errors.fileHandleForReading)
             let result = await (text, log)
@@ -420,11 +448,18 @@ enum SubscriptionLLM {
         private(set) var text = ""
         /// 最後に届く result の行の本文。
         private(set) var result: String?
+        /// 最初に届く init の行にある、実際に使うモデルと、API キーの出どころ。
+        private(set) var session: Session?
 
         /// 文が増えたら、それまでの全文を返す。
         func feed(_ line: String) -> String? {
             guard let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return nil }
             switch json["type"] as? String {
+            case "system":
+                if json["subtype"] as? String == "init", let model = json["model"] as? String {
+                    session = Session(model: model, apiKeySource: json["apiKeySource"] as? String ?? "")
+                }
+                return nil
             case "stream_event":
                 guard let event = json["event"] as? [String: Any],
                       let delta = event["delta"] as? [String: Any],

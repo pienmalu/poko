@@ -72,6 +72,35 @@ final class PolishTests: XCTestCase {
         XCTAssertEqual(parser.result, "1、2")
     }
 
+    func testModelCanBeChosenByTheCaller() {
+        let claude = SubscriptionLLM.arguments(for: .claude, system: "指示", user: "本文", model: "opus")
+        XCTAssertEqual(claude[claude.firstIndex(of: "--model")! + 1], "opus")
+        let codex = SubscriptionLLM.arguments(for: .chatgpt, system: "指示", user: "本文", model: "gpt-x")
+        XCTAssertEqual(codex[codex.firstIndex(of: "-m")! + 1], "gpt-x")
+        // 渡さないか空なら、決めてあるモデル
+        for model in [nil, "", " "] as [String?] {
+            let args = SubscriptionLLM.arguments(for: .claude, system: "指示", user: "本文", model: model)
+            XCTAssertEqual(args[args.firstIndex(of: "--model")! + 1], SubscriptionLLM.claudeModel)
+        }
+    }
+
+    /// API キーが環境変数にあっても、CLI には渡さない（サブスクのログインで動かす）。
+    func testEnvironmentDropsAPIKeys() {
+        let base = ["ANTHROPIC_API_KEY": "sk-a", "ANTHROPIC_AUTH_TOKEN": "t", "OPENAI_API_KEY": "sk-o", "CLAUDE_CODE_USE_BEDROCK": "1",
+                    "HOME": "/Users/me", "PATH": "/somewhere"]
+        let environment = SubscriptionLLM.environment(from: base, executable: URL(fileURLWithPath: "/opt/homebrew/bin/claude"))
+        for name in SubscriptionLLM.apiKeyVariables { XCTAssertNil(environment[name], name) }
+        XCTAssertEqual(environment["HOME"], "/Users/me")
+        XCTAssertTrue(environment["PATH"]?.hasPrefix("/opt/homebrew/bin:") == true)
+    }
+
+    func testStreamParserReadsTheModelAndTheKeySource() {
+        let parser = SubscriptionLLM.StreamParser()
+        XCTAssertNil(parser.session)
+        XCTAssertNil(parser.feed(#"{"type":"system","subtype":"init","model":"claude-sonnet-5-5","apiKeySource":"none"}"#))
+        XCTAssertEqual(parser.session, SubscriptionLLM.Session(model: "claude-sonnet-5-5", apiKeySource: "none"))
+    }
+
     func testOnlyLocalKeepsTextInside() {
         XCTAssertFalse(LLMProvider.local.sendsOut)
         XCTAssertTrue(LLMProvider.claude.sendsOut)
