@@ -346,23 +346,26 @@ enum SubscriptionLLM {
     /// CLI に渡す引数。純粋な関数にしてテストする。
     /// `stream` が true なら、claude は書いた分だけ JSON の行で返す（codex は最後にまとめて返すだけ）。
     /// `model` が nil か空なら、claudeModel・codexModel を使う。
+    /// `effort` は考える深さ（claude は low・medium・high・xhigh・max）。nil か空なら、claude には渡さず（CLI の既定）、codex は codexEffort。
     static func arguments(for provider: LLMProvider, system: String, user: String, stream: Bool = false,
-                          model: String? = nil) -> [String] {
+                          model: String? = nil, effort: String? = nil) -> [String] {
         let custom = model?.trimmingCharacters(in: .whitespaces) ?? ""
         let claudeModel = custom.isEmpty ? Self.claudeModel : custom
         let codexModel = custom.isEmpty ? Self.codexModel : custom
+        let depth = effort?.trimmingCharacters(in: .whitespaces) ?? ""
         switch provider {
         case .claude:
             // ツール、設定、MCP、スキル、会話の保存を使わず、答えるだけにする。
             // --bare はサブスクのログインを読まないので使わない。
             var args = ["-p", "--model", claudeModel, "--tools", "", "--setting-sources", "",
                         "--strict-mcp-config", "--disable-slash-commands", "--no-session-persistence"]
+            if !depth.isEmpty { args += ["--effort", depth] }
             if stream { args += ["--output-format", "stream-json", "--include-partial-messages", "--verbose"] }
             return args + ["--system-prompt", system, user]
         case .chatgpt:
             // 設定と規則を読まず、読み取り専用で、会話を残さない。指示と本文は1つのプロンプトにまとめる。
             return ["exec", "--skip-git-repo-check", "--ephemeral", "--ignore-user-config", "--ignore-rules",
-                    "-s", "read-only", "-m", codexModel, "-c", "model_reasoning_effort=\"\(codexEffort)\"",
+                    "-s", "read-only", "-m", codexModel, "-c", "model_reasoning_effort=\"\(depth.isEmpty ? codexEffort : depth)\"",
                     "--color", "never", system + "\n\n" + user]
         case .local:
             return []
@@ -373,7 +376,7 @@ enum SubscriptionLLM {
     /// onPartial を渡すと、それまでに書かれた全文を少しずつ渡す（claude だけ。codex は最後に1回）。どのスレッドから呼ぶかは決まっていない。
     /// onSession を渡すと、CLI が動き始めたときに、実際に使うモデルと API キーの出どころを渡す（claude だけ）。
     static func complete(_ provider: LLMProvider, system: String, user: String, timeout: TimeInterval, model: String? = nil,
-                         onSession: (@Sendable (Session) -> Void)? = nil,
+                         effort: String? = nil, onSession: (@Sendable (Session) -> Void)? = nil,
                          onPartial: (@Sendable (String) -> Void)? = nil) async throws -> String {
         let streaming = (onPartial != nil || onSession != nil) && provider == .claude
         let name = provider == .claude ? "Claude Code（claude）" : "Codex（codex）"
@@ -387,7 +390,7 @@ enum SubscriptionLLM {
 
         let process = Process()
         process.executableURL = executable
-        process.arguments = arguments(for: provider, system: system, user: user, stream: streaming, model: model)
+        process.arguments = arguments(for: provider, system: system, user: user, stream: streaming, model: model, effort: effort)
         process.currentDirectoryURL = workdir
         process.environment = environment(from: ProcessInfo.processInfo.environment, executable: executable)
         let output = Pipe()
@@ -405,13 +408,16 @@ enum SubscriptionLLM {
         defer { watchdog.cancel() }
 
         let parser = StreamParser()
-        let (out, err) = await withTaskCancellationHandler {
+        // 答えがそろった（result の行が届いた）か、CLI が終わったら、閉じる合図。
+        let (settled, settle) = AsyncStream<Void>.makeStream()
+        let reading = Task { () -> (Data, Data) in
             async let text = readAll(output.fileHandleForReading) { line in
                 guard streaming else { return }
                 let known = parser.session != nil
                 let partial = parser.feed(line)
                 if !known, let session = parser.session { onSession?(session) }
                 if let partial { onPartial?(partial) }
+                if parser.finished { settle.finish() }
             }
             async let log = readAll(errors.fileHandleForReading)
             let result = await (text, log)
@@ -421,11 +427,22 @@ enum SubscriptionLLM {
                     done.resume()
                 }
             }
+            settle.finish()
             return result
+        }
+        await withTaskCancellationHandler {
+            for await _ in settled {}
         } onCancel: {
             if process.isRunning { process.terminate() }
         }
         try Task.checkCancellation()
+        // 答えがそろっていれば、CLI の後片づけ（1 秒ほど）を待たずに返す。CLI は、そのまま自分で終わる。
+        // 止めても後片づけは短くならないので、止めはしない。終わらずに残ったときだけ、後から止める。
+        if streaming, parser.finished, let result = parser.result {
+            DispatchQueue.global().asyncAfter(deadline: .now() + 10) { if process.isRunning { process.terminate() } }
+            return result.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let (out, err) = await reading.value
         guard process.terminationReason == .exit, process.terminationStatus == 0 else {
             if process.terminationReason == .uncaughtSignal {
                 throw LLMFailure(message: "\(name) が \(Int(timeout)) 秒で答えませんでした")
@@ -448,6 +465,8 @@ enum SubscriptionLLM {
         private(set) var text = ""
         /// 最後に届く result の行の本文。
         private(set) var result: String?
+        /// result の行が届き、それが失敗の知らせ（is_error）ではなかった。答えは全部そろっている。
+        private(set) var finished = false
         /// 最初に届く init の行にある、実際に使うモデルと、API キーの出どころ。
         private(set) var session: Session?
 
@@ -469,6 +488,7 @@ enum SubscriptionLLM {
                 return text
             case "result":
                 result = json["result"] as? String
+                finished = result != nil && json["is_error"] as? Bool != true
                 return nil
             default:
                 return nil

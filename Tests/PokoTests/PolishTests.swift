@@ -68,8 +68,31 @@ final class PolishTests: XCTestCase {
         XCTAssertEqual(parser.feed(#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"1、"}}}"#), "1、")
         XCTAssertEqual(parser.feed(#"{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"2"}}}"#), "1、2")
         XCTAssertNil(parser.feed("壊れた行"))
+        XCTAssertFalse(parser.finished)
         XCTAssertNil(parser.feed(#"{"type":"result","subtype":"success","result":"1、2"}"#))
         XCTAssertEqual(parser.result, "1、2")
+        XCTAssertTrue(parser.finished)
+    }
+
+    /// 失敗の知らせ（is_error）は、答えがそろったことにしない（CLI を先に止めず、失敗として扱う）。
+    func testStreamParserDoesNotFinishOnAnError() {
+        let parser = SubscriptionLLM.StreamParser()
+        XCTAssertNil(parser.feed(#"{"type":"result","subtype":"success","is_error":true,"result":"使える枠を超えました"}"#))
+        XCTAssertFalse(parser.finished)
+    }
+
+    func testEffortCanBeChosenByTheCaller() {
+        let claude = SubscriptionLLM.arguments(for: .claude, system: "指示", user: "本文", effort: "low")
+        XCTAssertEqual(claude[claude.firstIndex(of: "--effort")! + 1], "low")
+        XCTAssertEqual(claude.last, "本文")
+        let codex = SubscriptionLLM.arguments(for: .chatgpt, system: "指示", user: "本文", effort: "medium")
+        XCTAssertTrue(codex.contains(#"model_reasoning_effort="medium""#))
+        // 渡さないか空なら、claude には付けず、codex は決めてある深さ
+        for effort in [nil, "", " "] as [String?] {
+            XCTAssertFalse(SubscriptionLLM.arguments(for: .claude, system: "指示", user: "本文", effort: effort).contains("--effort"))
+            XCTAssertTrue(SubscriptionLLM.arguments(for: .chatgpt, system: "指示", user: "本文", effort: effort)
+                .contains("model_reasoning_effort=\"\(SubscriptionLLM.codexEffort)\""))
+        }
     }
 
     func testModelCanBeChosenByTheCaller() {

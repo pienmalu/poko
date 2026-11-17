@@ -8,7 +8,7 @@
 - 辞書（`Vocabulary.swift`）は `~/Library/Application Support/Poko/dictionary.txt` に「書き方=読み,読み」で置き、認識には `--keywords` で、推敲には用語集として渡す。辞書が空なら `--keywords` も `--keywords-alpha` も付けない（空や alpha だけを渡すと認識が失敗する）
 - モデルは speech.cpp の既定のフォルダ（`~/Library/Caches/speech.cpp/models`）に置き、ほかの用途と共有する。リポジトリの `models/` には `setup.sh` が張るリンクだけを置く
 - 音声は Mac の外に送らない。文字（と、用語集にした辞書の全部）を送るのは、推敲（メニュー → 推敲）に Claude か ChatGPT を選んだときだけで、既定は「しない」。外に送る選択肢には、メニューの名前に送り先を書く
-- サブスクはログイン済みの公式 CLI（`claude -p`、`codex exec`）を1回ごとに起動して使い、アプリは API キーもトークンも持たない。環境変数の API キーも CLI に渡さない（`SubscriptionLLM.environment`）。`SubscriptionLLM.complete` の `model`・`onSession` と `environment(from:executable:)` は、`LLM.swift` を一緒にコンパイルして使う別のビルドのために開けてある。Poko 自身が使っていなくても、閉じたり名前を変えたりしない。CLI の場所はログインシェルに尋ねる（Dock から開いたアプリには PATH が渡らない）
+- サブスクはログイン済みの公式 CLI（`claude -p`、`codex exec`）を1回ごとに起動して使い、アプリは API キーもトークンも持たない。環境変数の API キーも CLI に渡さない（`SubscriptionLLM.environment`）。`SubscriptionLLM.complete` の `model`・`effort`・`onSession` と `environment(from:executable:)` は、`LLM.swift` を一緒にコンパイルして使う別のビルドのために開けてある。Poko 自身が使っていなくても、閉じたり名前を変えたりしない。CLI の場所はログインシェルに尋ねる（Dock から開いたアプリには PATH が渡らない）
 - 推敲の Gemma（llama-server）は常駐させない。押してから `minimumHold` を過ぎたら起動し、2 分使わなければ止める。llama.cpp やモデルがなくても認識と貼り付けは今までどおり動くようにし、推敲が失敗したら元の文を貼る
 - `Sources/Poko/LLM.swift` は別のアプリも持ち込んで使う。Poko のほかのファイルに頼らせず、Poko 固有のことも書かない
 - 要る許可はアクセシビリティとマイクの2つだけ。通知センターなど、許可を増やすものは足さない
