@@ -240,7 +240,7 @@ POKO_HOME=$PWD POKO_TEST_WAV=voice.wav POKO_TEST_KEYWORDS=dictionary.txt ./scrip
 ./tools/render-window.sh                # 窓をライトとダーク、空と中身ありで build/window/ に PNG で描く（画面収録の許可がないと中身だけ）
 POKO_HOME=$PWD POKO_TEST_LLM=local,claude,chatgpt ./scripts/test.sh   # 本物の LLM で推敲する（claude と chatgpt は文字を送る）
 ./tools/render-icon.sh                  # メニューバーのアイコンの全状態をコマ送りで build/icon-frames.png に描く（明暗、1x と 2x）
-./tools/render-app-icon.sh              # アプリのアイコン Resources/AppIcon.icns を、正方形の絵 Resources/AppIcon.png から作り直す
+./tools/render-app-icon.sh              # アプリのアイコン Resources/AppIcon.icns を、元の絵 Resources/AppIcon.svg から作り直す（Chrome を使う）
 ```
 
 - ビルドは SwiftPM を使わず、`swiftc` で直接行う。`Package.swift` は Xcode で開くためのもの。
@@ -248,7 +248,8 @@ POKO_HOME=$PWD POKO_TEST_LLM=local,claude,chatgpt ./scripts/test.sh   # 本物�
   `~/Applications` に入れたアプリも同じで、フォルダを動かしたらビルドし直す。
   `POKO_HOME=<フォルダ>` を付けて起動すると、別の場所を使える。
 - speech.cpp を上げるときは、`scripts/setup.sh` の `VERSION` を変えて実行し直す。
-- アプリのアイコンの絵は自作アプリで共通の黒いスライム（`~/workspace/dev/brand/black-slime`）から描いた。描き方とほかの案はそちらの README にある。
+- アプリのアイコンは、[Mogu](https://github.com/pienmalu/mogu/tree/personal) と同じ飴のもち。
+  Poko は青で浮き上がり、「ぽ」と口を丸くして、頭に粒がぽこっと出ている。16・32pt には、顔を太く描いた `AppIcon-small.svg` を使う。
 
 ## ライセンス
 

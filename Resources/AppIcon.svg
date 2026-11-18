@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Poko のアイコン。Mogu と同じ飴のもち（墨色の地、左上からの光、同じ輪郭）で、姿勢・顔・色だけが違う。
+     Poko は青。少し縦に伸びて浮き、目を開けて「ぽ」と口を丸くし、頭の上に粒がぽこっと出る。
+     書き出し: ./tools/render-app-icon.sh -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#262838"/><stop offset="0.6" stop-color="#11121A"/><stop offset="1" stop-color="#07080C"/>
+    </linearGradient>
+    <radialGradient id="aura" cx="0.5" cy="0.5" r="0.55">
+      <stop offset="0" stop-color="#3F7DFF" stop-opacity="0.26"/><stop offset="1" stop-color="#3F7DFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="window" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.92"/><stop offset="1" stop-color="#fff" stop-opacity="0.15"/>
+    </linearGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.9 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+    <filter id="blur-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="56"/></filter>
+    <filter id="blur-l" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="26"/></filter>
+    <filter id="blur-m" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="14"/></filter>
+    <filter id="blur-s" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="5"/></filter>
+    <filter id="blur-xs" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+    <filter id="blur-cheek" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="18"/></filter>
+    
+    <clipPath id="clip-body"><path d="M208.0,661.04 C208.0,371.12 324.8,202 500,202 C675.2,202 792.0,371.12 792.0,661.04 C792.0,775.8 733.6,806 651.84,806 Q500,827.14 348.15999999999997,806 C266.4,806 208.0,775.8 208.0,661.04 Z"/></clipPath>
+    <linearGradient id="body-body" gradientUnits="userSpaceOnUse" x1="208.0" y1="202" x2="792.0" y2="806">
+      <stop offset="0" stop-color="#D6EEFF"/><stop offset="0.36" stop-color="#5CA8FF"/>
+      <stop offset="0.78" stop-color="#2342C8"/><stop offset="1" stop-color="#0E1650"/>
+    </linearGradient>
+    <radialGradient id="sheen-body" gradientUnits="userSpaceOnUse" cx="359.84000000000003" cy="298.64" r="374.48">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="core-body" gradientUnits="userSpaceOnUse" cx="675.2" cy="793.92" r="332.20000000000005">
+      <stop offset="0" stop-color="#0E1650" stop-opacity="0.5"/><stop offset="1" stop-color="#0E1650" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sub-body" gradientUnits="userSpaceOnUse" cx="500.0" cy="854.32" r="292.0" gradientTransform="translate(0 806) scale(1 0.55) translate(0 -806)">
+      <stop offset="0" stop-color="#D6EEFF" stop-opacity="0.75"/><stop offset="1" stop-color="#D6EEFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim-body" gradientUnits="userSpaceOnUse" x1="208.0" y1="202" x2="529.2" y2="534.2">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="caustic-body" gradientUnits="userSpaceOnUse" x1="0" y1="504.0" x2="0" y2="806">
+      <stop offset="0" stop-color="#D6EEFF" stop-opacity="0"/><stop offset="1" stop-color="#D6EEFF" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="window-body" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/><stop offset="1" stop-color="#fff" stop-opacity="0.08"/>
+    </linearGradient>
+    <clipPath id="clip-bead"><path d="M716,236 A52,52 0 1 0 820,236 A52,52 0 1 0 716,236 Z"/></clipPath>
+    <linearGradient id="body-bead" gradientUnits="userSpaceOnUse" x1="716" y1="184" x2="820" y2="288">
+      <stop offset="0" stop-color="#D6EEFF"/><stop offset="0.36" stop-color="#5CA8FF"/>
+      <stop offset="0.78" stop-color="#2342C8"/><stop offset="1" stop-color="#0E1650"/>
+    </linearGradient>
+    <radialGradient id="sheen-bead" gradientUnits="userSpaceOnUse" cx="743.04" cy="200.64" r="64.48">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.5"/><stop offset="0.45" stop-color="#fff" stop-opacity="0.1"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="core-bead" gradientUnits="userSpaceOnUse" cx="799.2" cy="285.92" r="57.2">
+      <stop offset="0" stop-color="#0E1650" stop-opacity="0.5"/><stop offset="1" stop-color="#0E1650" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sub-bead" gradientUnits="userSpaceOnUse" cx="768.0" cy="296.32" r="52.0" gradientTransform="translate(0 288) scale(1 0.55) translate(0 -288)">
+      <stop offset="0" stop-color="#D6EEFF" stop-opacity="0.75"/><stop offset="1" stop-color="#D6EEFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim-bead" gradientUnits="userSpaceOnUse" x1="716" y1="184" x2="773.2" y2="241.2">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="caustic-bead" gradientUnits="userSpaceOnUse" x1="0" y1="236.0" x2="0" y2="288">
+      <stop offset="0" stop-color="#D6EEFF" stop-opacity="0"/><stop offset="1" stop-color="#D6EEFF" stop-opacity="1"/>
+    </linearGradient>
+    <linearGradient id="window-bead" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity="0.9"/><stop offset="1" stop-color="#fff" stop-opacity="0.08"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#aura)"/>
+  <ellipse cx="500.0" cy="876.5" rx="362.08" ry="70.08" fill="#3F7DFF" opacity="0.30" filter="url(#blur-glow)"/><ellipse cx="500.0" cy="864.5" rx="204.39999999999998" ry="36.5" fill="#000" opacity="0.61875" filter="url(#blur-m)"/><path d="M208.0,661.04 C208.0,371.12 324.8,202 500,202 C675.2,202 792.0,371.12 792.0,661.04 C792.0,775.8 733.6,806 651.84,806 Q500,827.14 348.15999999999997,806 C266.4,806 208.0,775.8 208.0,661.04 Z" fill="#3F7DFF" opacity="0.32" filter="url(#blur-glow)"/><path d="M208.0,661.04 C208.0,371.12 324.8,202 500,202 C675.2,202 792.0,371.12 792.0,661.04 C792.0,775.8 733.6,806 651.84,806 Q500,827.14 348.15999999999997,806 C266.4,806 208.0,775.8 208.0,661.04 Z" fill="url(#body-body)"/><g clip-path="url(#clip-body)"><rect x="148.0" y="142" width="704.0" height="724" fill="url(#core-body)"/><rect x="148.0" y="142" width="704.0" height="724" fill="url(#sub-body)"/><path d="M208.0,661.04 C208.0,371.12 324.8,202 500,202 C675.2,202 792.0,371.12 792.0,661.04 C792.0,775.8 733.6,806 651.84,806 Q500,827.14 348.15999999999997,806 C266.4,806 208.0,775.8 208.0,661.04 Z" fill="none" stroke="#0E1650" stroke-width="44" opacity="0.45" filter="url(#blur-m)"/><rect x="148.0" y="142" width="704.0" height="724" fill="url(#sheen-body)"/><path d="M208.0,661.04 C208.0,371.12 324.8,202 500,202 C675.2,202 792.0,371.12 792.0,661.04 C792.0,775.8 733.6,806 651.84,806 Q500,827.14 348.15999999999997,806 C266.4,806 208.0,775.8 208.0,661.04 Z" fill="none" stroke="url(#caustic-body)" stroke-width="18" transform="translate(0 -20)" filter="url(#blur-s)"/><path d="M208.0,661.04 C208.0,371.12 324.8,202 500,202 C675.2,202 792.0,371.12 792.0,661.04 C792.0,775.8 733.6,806 651.84,806 Q500,827.14 348.15999999999997,806 C266.4,806 208.0,775.8 208.0,661.04 Z" fill="none" stroke="url(#rim-body)" stroke-width="5" transform="translate(3 4)"/></g><path d="M716,236 A52,52 0 1 0 820,236 A52,52 0 1 0 716,236 Z" fill="#3F7DFF" opacity="0.32" filter="url(#blur-glow)"/><path d="M716,236 A52,52 0 1 0 820,236 A52,52 0 1 0 716,236 Z" fill="url(#body-bead)"/><g clip-path="url(#clip-bead)"><rect x="656" y="124" width="224" height="224" fill="url(#core-bead)"/><rect x="656" y="124" width="224" height="224" fill="url(#sub-bead)"/><path d="M716,236 A52,52 0 1 0 820,236 A52,52 0 1 0 716,236 Z" fill="none" stroke="#0E1650" stroke-width="44" opacity="0.45" filter="url(#blur-m)"/><rect x="656" y="124" width="224" height="224" fill="url(#sheen-bead)"/><path d="M716,236 A52,52 0 1 0 820,236 A52,52 0 1 0 716,236 Z" fill="none" stroke="url(#caustic-bead)" stroke-width="18" transform="translate(0 -20)" filter="url(#blur-s)"/><path d="M716,236 A52,52 0 1 0 820,236 A52,52 0 1 0 716,236 Z" fill="none" stroke="url(#rim-bead)" stroke-width="5" transform="translate(3 4)"/></g><ellipse cx="394.88" cy="516.0799999999999" rx="24.8" ry="34.4" fill="#0A0C14"/><circle cx="386.08" cy="502.4799999999999" r="9.6" fill="#fff"/><circle cx="402.88" cy="528.0799999999999" r="3.5999999999999996" fill="#fff" opacity="0.7"/><ellipse cx="605.12" cy="516.0799999999999" rx="24.8" ry="34.4" fill="#0A0C14"/><circle cx="596.32" cy="502.4799999999999" r="9.6" fill="#fff"/><circle cx="613.12" cy="528.0799999999999" r="3.5999999999999996" fill="#fff" opacity="0.7"/><ellipse cx="500" cy="642.92" rx="34" ry="40" fill="#0A0C14"/><ellipse cx="500" cy="658.92" rx="18" ry="12" fill="#2342C8" opacity="0.8"/><g transform="rotate(-36 354.0 322.79999999999995)"><rect x="279.0" y="299.79999999999995" width="150" height="46" rx="23.0" fill="url(#window)" filter="url(#blur-xs)"/></g><g transform="rotate(-40 750 214)"><rect x="733.0" y="207.0" width="34" height="14" rx="7.0" fill="url(#window)" filter="url(#blur-xs)"/></g>
+  <rect width="1024" height="1024" fill="#fff" opacity="0.045" filter="url(#grain)"/>
+</svg>
